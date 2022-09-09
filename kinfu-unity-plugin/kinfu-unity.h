@@ -10,8 +10,15 @@
 #define KINFUUNITY_API __declspec(dllimport)
 #endif
 
-extern "C" {
+extern "C"
+{
 	KINFUUNITY_API int getConnectedSensorCount();
+	KINFUUNITY_API bool connectToDevice(int deviceIndex);
+	KINFUUNITY_API bool connectToDefaultDevice();
+	KINFUUNITY_API bool setupConfigAndCalibrate();
+	KINFUUNITY_API bool startCameras();
+	KINFUUNITY_API bool getFrame();
+	KINFUUNITY_API void closeDevice();
 
 	KINFUUNITY_API int sumNumbers(int a, int b);
 }
