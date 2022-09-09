@@ -1,23 +1,7 @@
 #include "pch.h"
-#include "kinfu-helpers.h"
 #include "framework.h"
+#include "kinfu-helpers.h"
 
-#include <stdio.h>
-#include <fstream>
-#include <sstream>
-#include <vector>
-#include <algorithm>
-#include <k4a/k4a.h>
-#include <math.h>
-
-using namespace std;
-
-#include <opencv2/core.hpp>
-#include <opencv2/calib3d.hpp>
-#include <opencv2/opencv.hpp>
-#include <opencv2/rgbd.hpp>
-#include <opencv2/viz.hpp>
-using namespace cv;
 ////
 // 
 // Initialisation helper functions
@@ -39,10 +23,10 @@ void initialize_kinfu_params(kinfu::Params& params,
     params.depthFactor = 1000.0f;
 }
 
-template<typename T> Mat create_mat_from_buffer(T* data, int width, int height, int channels)
+Mat create_mat_from_buffer(uint16_t* data, int width, int height, int channels)
 {
-    Mat mat(height, width, CV_MAKETYPE(DataType<T>::type, channels));
-    memcpy(mat.data, data, width * height * channels * sizeof(T));
+    Mat mat(height, width, CV_MAKETYPE(DataType<uint16_t>::type, channels));
+    memcpy(mat.data, data, width * height * channels * sizeof(uint16_t));
     return mat;
 }
 

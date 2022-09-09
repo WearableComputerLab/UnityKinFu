@@ -3,25 +3,10 @@
 
 #include "pch.h"
 #include "framework.h"
-#include "kinfu-unity.h"
 #include "kinfu-helpers.h"
 
-#include <stdio.h>
-#include <fstream>
-#include <sstream>
-#include <vector>
-#include <algorithm>
-#include <k4a/k4a.h>
-#include <math.h>
+#include "kinfu-unity.h"
 
-using namespace std;
-
-#include <opencv2/core.hpp>
-#include <opencv2/calib3d.hpp>
-#include <opencv2/opencv.hpp>
-#include <opencv2/rgbd.hpp>
-#include <opencv2/viz.hpp>
-using namespace cv;
 
 // The currently connected device
 k4a_device_t device = NULL;
@@ -178,7 +163,7 @@ bool captureFrame()
     uint8_t *buffer = k4a_image_get_buffer(undistorted_depth_image);
     uint16_t *depth_buffer = reinterpret_cast<uint16_t *>(buffer);
     UMat undistortedFrame;
-    create_mat_from_buffer<uint16_t>(depth_buffer, width, height).copyTo(undistortedFrame);
+    create_mat_from_buffer(depth_buffer, width, height, 1).copyTo(undistortedFrame);
 
     if (undistortedFrame.empty())
     {

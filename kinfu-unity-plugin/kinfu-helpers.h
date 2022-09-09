@@ -1,20 +1,8 @@
 #pragma once
 
-#include <stdio.h>
-#include <fstream>
-#include <sstream>
-#include <vector>
-#include <algorithm>
 #include <k4a/k4a.h>
-#include <math.h>
-
-using namespace std;
-
-#include <opencv2/core.hpp>
-#include <opencv2/calib3d.hpp>
-#include <opencv2/opencv.hpp>
 #include <opencv2/rgbd.hpp>
-#include <opencv2/viz.hpp>
+
 using namespace cv;
 
 ////
@@ -59,7 +47,8 @@ void initialize_kinfu_params(kinfu::Params& params,
     const float cx,
     const float cy);
 
-template<typename T> Mat create_mat_from_buffer(T* data, int width, int height, int channels = 1);
+
+Mat create_mat_from_buffer(uint16_t* data, int width, int height, int channels);
 
 // Compute a conservative bounding box on the unit plane in which all the points have valid projections
 void compute_xy_range(const k4a_calibration_t* calibration,
