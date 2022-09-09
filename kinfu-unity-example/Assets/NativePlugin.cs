@@ -6,20 +6,64 @@ using System.Runtime.InteropServices;
 
 public class NativePlugin : MonoBehaviour
 {
+    public TMPro.TMP_Text connectedLabel;
+
     [DllImport("kinfuunity", EntryPoint = "getConnectedSensorCount")]
     public static extern int getConnectedSensorCount();
-
     
-    [DllImport("kinfuunity", EntryPoint = "sumNumbers")]
-    public static extern int sumNumbers(int a, int b);
+    [DllImport("kinfuunity", EntryPoint = "connectToDevice")]
+    public static extern bool connectToDevice(int deviceIndex);
+    
+    [DllImport("kinfuunity", EntryPoint = "connectToDefaultDevice")]
+    public static extern bool connectToDefaultDevice();
+    
+    [DllImport("kinfuunity", EntryPoint = "setupConfigAndCalibrate")]
+    public static extern bool setupConfigAndCalibrate();
+    
+    [DllImport("kinfuunity", EntryPoint = "startCameras")]
+    public static extern bool startCameras();
+    
+    [DllImport("kinfuunity", EntryPoint = "captureFrame")]
+    public static extern bool captureFrame();
+    
+    [DllImport("kinfuunity", EntryPoint = "closeDevice")]
+    public static extern void closeDevice();
 
-    // Start is called before the first frame update
-    void Start()
+    void Update()
     {
-        Debug.LogFormat("Connected Devices: {0}", getConnectedSensorCount());
+        var devices = getConnectedSensorCount();
 
-        
-        Debug.Log(sumNumbers(3, 5));
-        
+        if (connectedLabel != null)
+        {
+            connectedLabel.text = string.Format("Connected Devices: {0}", devices);
+        }          
+    }
+
+    public void ConnectCamera() {
+        var success = connectToDefaultDevice();
+        Debug.LogFormat("connectToDefaultDevice: {0}", success);
+    }
+
+    public void ConfigCamera()
+    {
+        var success = setupConfigAndCalibrate();
+        Debug.LogFormat("setupConfigAndCalibrate: {0}", success);
+    }
+
+    public void StartCamera()
+    {
+        var success = startCameras();
+        Debug.LogFormat("startCameras: {0}", success);
+    }
+
+    public void CaptureFrame()
+    {
+        var success = captureFrame();
+        Debug.LogFormat("captureFrame: {0}", success);
+    }
+
+    public void CloseCamera()
+    {
+        closeDevice();
     }
 }
