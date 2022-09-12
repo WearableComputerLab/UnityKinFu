@@ -32,6 +32,14 @@ int getConnectedSensorCount()
     return k4a_device_get_installed_count();
 }
 
+int connectAndStartCameras() {
+    if (!connectToDefaultDevice()) return -1;
+    if (!setupConfigAndCalibrate()) return -2;
+    if (!startCameras()) return -3;
+
+    return 0;
+}
+
 bool connectToDevice(int deviceIndex)
 {
 

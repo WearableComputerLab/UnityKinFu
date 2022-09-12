@@ -17,6 +17,7 @@ extern "C"
 	KINFUUNITY_API bool connectToDefaultDevice();
 	KINFUUNITY_API bool setupConfigAndCalibrate();
 	KINFUUNITY_API bool startCameras();
+	KINFUUNITY_API int connectAndStartCameras();
 	KINFUUNITY_API bool captureFrame();
 	KINFUUNITY_API void closeDevice();
 }

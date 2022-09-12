@@ -13,10 +13,13 @@ public class NativePlugin : MonoBehaviour
     
     [DllImport("kinfuunity", EntryPoint = "connectToDevice")]
     public static extern bool connectToDevice(int deviceIndex);
-    
+
     [DllImport("kinfuunity", EntryPoint = "connectToDefaultDevice")]
     public static extern bool connectToDefaultDevice();
-    
+
+    [DllImport("kinfuunity", EntryPoint = "connectAndStartCameras")]
+    public static extern int connectAndStartCameras();
+
     [DllImport("kinfuunity", EntryPoint = "setupConfigAndCalibrate")]
     public static extern bool setupConfigAndCalibrate();
     
@@ -36,10 +39,17 @@ public class NativePlugin : MonoBehaviour
         if (connectedLabel != null)
         {
             connectedLabel.text = string.Format("Connected Devices: {0}", devices);
-        }          
+        }
     }
 
-    public void ConnectCamera() {
+    public void ConnectAndStartCameras()
+    {
+        var success = connectAndStartCameras();
+        Debug.LogFormat("connectAndStartCameras: {0}", success);
+    }
+
+    public void ConnectCamera()
+    {
         var success = connectToDefaultDevice();
         Debug.LogFormat("connectToDefaultDevice: {0}", success);
     }
