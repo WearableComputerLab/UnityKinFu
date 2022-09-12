@@ -13,8 +13,8 @@
 extern "C"
 {
 
-	typedef void (*PrintMessageCallback)(const char *);
-	KINFUUNITY_API void RegisterPrintMessageCallback(PrintMessageCallback callback);
+	typedef void (*PrintMessageCallback)(int level, const char *);
+	KINFUUNITY_API void RegisterPrintMessageCallback(PrintMessageCallback callback, int level);
 
 	KINFUUNITY_API int getConnectedSensorCount();
 	KINFUUNITY_API bool connectToDevice(int deviceIndex);

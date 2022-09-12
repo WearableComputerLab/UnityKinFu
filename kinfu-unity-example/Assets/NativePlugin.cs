@@ -6,7 +6,18 @@ using System.Runtime.InteropServices;
 
 public class NativePlugin : MonoBehaviour
 {
+    public enum KinFuLogLevels
+    {
+        Critical = 0,
+        Error,
+        Warning,
+        Information,
+        Trace,
+        Off
+    }
+
     public TMPro.TMP_Text connectedLabel;
+    public KinFuLogLevels logLevel = KinFuLogLevels.Warning;
 
     [DllImport("kinfuunity", EntryPoint = "getConnectedSensorCount")]
     public static extern int getConnectedSensorCount();
@@ -32,24 +43,32 @@ public class NativePlugin : MonoBehaviour
     [DllImport("kinfuunity", EntryPoint = "closeDevice")]
     public static extern void closeDevice();
 
-    delegate void PrintMessageCallback(string msg);
+    delegate void PrintMessageCallback(int level, string msg);
 
     [DllImport("kinfuunity", EntryPoint = "RegisterPrintMessageCallback")]
-    static extern void RegisterPrintMessageCallback(PrintMessageCallback func);
+    static extern void RegisterPrintMessageCallback(PrintMessageCallback func, int level);
     
-    [MonoPInvokeCallback(typeof(PrintMessageCallback))]
-    static void PrintMessage(string msg)
+    [AOT.MonoPInvokeCallback(typeof(PrintMessageCallback))]
+    static void PrintMessage(int level, string msg)
     {
-        Debug.LogFormat("FROM C++: {0}", msg);
-    }
+        switch(level)
+        {
+            case 0:
+            case 1:
+                Debug.LogErrorFormat("Kinfu: {0}", msg);
+                break;
+            case 2:
+                Debug.LogWarningFormat("Kinfu: {0}", msg);
+                break;
 
-    public void LogMessage(string msg)
-    {
-        Debug.LogFormat("FROM C++ (SendMessage): {0}", msg);
+            default:
+                Debug.LogFormat("Kinfu: {0}", msg);
+                break;
+        }
     }
 
     private void Awake() {
-        RegisterPrintMessageCallback(PrintMessage);    
+        RegisterPrintMessageCallback(PrintMessage, ((int)logLevel));    
     }
 
     void Update()
