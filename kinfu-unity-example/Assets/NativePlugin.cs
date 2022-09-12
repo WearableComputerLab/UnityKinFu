@@ -32,6 +32,26 @@ public class NativePlugin : MonoBehaviour
     [DllImport("kinfuunity", EntryPoint = "closeDevice")]
     public static extern void closeDevice();
 
+    delegate void PrintMessageCallback(string msg);
+
+    [DllImport("kinfuunity", EntryPoint = "RegisterPrintMessageCallback")]
+    static extern void RegisterPrintMessageCallback(PrintMessageCallback func);
+    
+    [MonoPInvokeCallback(typeof(PrintMessageCallback))]
+    static void PrintMessage(string msg)
+    {
+        Debug.LogFormat("FROM C++: {0}", msg);
+    }
+
+    public void LogMessage(string msg)
+    {
+        Debug.LogFormat("FROM C++ (SendMessage): {0}", msg);
+    }
+
+    private void Awake() {
+        RegisterPrintMessageCallback(PrintMessage);    
+    }
+
     void Update()
     {
         var devices = getConnectedSensorCount();

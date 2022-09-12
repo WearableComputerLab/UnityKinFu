@@ -7,6 +7,27 @@
 
 #include "kinfu-unity.h"
 
+extern void UnitySendMessage(const char *, const char *, const char *);
+
+typedef void (*PrintMessageCallback)(const char *);
+
+PrintMessageCallback printMessage = NULL;
+void RegisterPrintMessageCallback(PrintMessageCallback callback)
+{
+    printMessage = callback;
+}
+
+void PrintMessage(const char *msg)
+{
+    if (printMessage != NULL)
+    {
+        printMessage(msg);
+    }
+
+    UnitySendMessage("NativePlugin", "LogMessage", msg);
+
+    printf(msg);
+}
 
 // The currently connected device
 k4a_device_t device = NULL;
@@ -45,8 +66,8 @@ bool connectToDevice(int deviceIndex)
 
     if (K4A_RESULT_SUCCEEDED != k4a_device_open(deviceIndex, &device))
     {
-        printf("Failed to open device\n");
-        k4a_device_close(device);
+        PrintMessage("Failed to open device\n");
+        closeDevice();
         return false;
     }
 
@@ -68,8 +89,8 @@ bool setupConfigAndCalibrate()
     if (K4A_RESULT_SUCCEEDED !=
         k4a_device_get_calibration(device, config.depth_mode, config.color_resolution, &calibration))
     {
-        printf("Failed to get calibration\n");
-        k4a_device_close(device);
+        PrintMessage("Failed to get calibration\n");
+        closeDevice();
         return false;
     }
 
@@ -78,10 +99,12 @@ bool setupConfigAndCalibrate()
 
 bool startCameras()
 {
+    stopCameras();
+
     if (K4A_RESULT_SUCCEEDED != k4a_device_start_cameras(device, &config))
     {
-        printf("Failed to start device\n");
-        k4a_device_close(device);
+        PrintMessage("Failed to start device\n");
+        closeDevice();
         return false;
     }
 
@@ -142,12 +165,12 @@ bool captureFrame()
     case K4A_WAIT_RESULT_SUCCEEDED:
         break;
     case K4A_WAIT_RESULT_TIMEOUT:
-        printf("Timed out waiting for a capture\n");
+        PrintMessage("Timed out waiting for a capture\n");
         return true;
 
     case K4A_WAIT_RESULT_FAILED:
-        printf("Failed to read a capture\n");
-        k4a_device_close(device);
+        PrintMessage("Failed to read a capture\n");
+        closeDevice();
         return false;
     }
 
@@ -155,7 +178,7 @@ bool captureFrame()
     depth_image = k4a_capture_get_depth_image(capture);
     if (depth_image == NULL)
     {
-        printf("Depth16 None\n");
+        PrintMessage("Depth16 None\n");
         k4a_capture_release(capture);
         return false;
     }
@@ -184,7 +207,7 @@ bool captureFrame()
     // Update KinectFusion
     if (!kf->update(undistortedFrame))
     {
-        printf("Reset KinectFusion\n");
+        PrintMessage("Reset KinectFusion\n");
         kf->reset();
         k4a_image_release(depth_image);
         k4a_image_release(undistorted_depth_image);
@@ -202,9 +225,23 @@ bool captureFrame()
     return true;
 }
 
+bool stopCameras()
+{
+    if (K4A_RESULT_SUCCEEDED != k4a_device_stop_cameras(device))
+    {
+        PrintMessage("Failed to stop device\n");
+        closeDevice();
+        return false;
+    }
+}
+
 void closeDevice()
 {
-    k4a_image_release(lut);
+    if (lut != NULL)
+    {
+        k4a_image_release(lut);
+        lut = NULL;
+    }
 
     k4a_device_close(device);
 }

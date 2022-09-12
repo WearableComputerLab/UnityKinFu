@@ -12,6 +12,10 @@
 
 extern "C"
 {
+
+	typedef void (*PrintMessageCallback)(const char *);
+	KINFUUNITY_API void RegisterPrintMessageCallback(PrintMessageCallback callback);
+
 	KINFUUNITY_API int getConnectedSensorCount();
 	KINFUUNITY_API bool connectToDevice(int deviceIndex);
 	KINFUUNITY_API bool connectToDefaultDevice();
@@ -19,5 +23,6 @@ extern "C"
 	KINFUUNITY_API bool startCameras();
 	KINFUUNITY_API int connectAndStartCameras();
 	KINFUUNITY_API bool captureFrame();
+	KINFUUNITY_API bool stopCameras();
 	KINFUUNITY_API void closeDevice();
 }
