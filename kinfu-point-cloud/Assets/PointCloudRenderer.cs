@@ -16,41 +16,26 @@ public class PointCloudRenderer : MonoBehaviour
     bool toUpdate = false;
     uint particleCount = 0;
 
-    public Vector3 boundSize;
-    public Vector3 boundCentre;
+    // if camera cannot see bounds (determined via boundsSize) it
+    // will clip pointcloud
+    public Vector3 boundsSize;
+    public Vector3 boundsCentre;    
 
-    Mesh mesh;
-    Vector3[] vertices;
-    Color[] colors;
-    
-    // public Mesh procMesh;
-
+    //List for dynamic assignment
     List<Vector3> pointVertices= new List<Vector3>();
     List<Vector3> pointNormals = new List<Vector3>();
-
-    void OnEnable(){
-        mesh = new Mesh{ name = "procedural_mesh" };
-        // mesh.vertices = new Vector3[]{
-        //     Vector3.zero, Vector3.right, Vector3.up
-        // };
-        GetComponent<MeshFilter>().mesh = mesh; 
-        // mesh.triangles = new int[] {0,2,1};
-    }
 
     private void Start()
     {
         vfx = GetComponent<VisualEffect>();
-
-        colors = new Color[(int)resolution * (int)resolution];
-        // Use mesh rather than list of points
-        // vertices = mesh.vertices;
-        // SetParticles(vertices, colors);
+        // Create array to store colours
+        // colours = new Color[(int)resolution * (int)resolution];
         // Get file and convert to point and normal array
         string[] vertexPoints = ReadFile();
         // Use point list to create vector3 points
         SetVertices(vertexPoints);  
         // After we've assigned points we can build the cloud
-        SetParticles(pointVertices, colors);
+        SetParticles(pointVertices);
         
     }
 
@@ -65,13 +50,12 @@ public class PointCloudRenderer : MonoBehaviour
             vfx.SetTexture(Shader.PropertyToID("TexColor"), texColor);
             vfx.SetTexture(Shader.PropertyToID("TexPosScale"), texPosScale);
             vfx.SetUInt(Shader.PropertyToID("Resolution"), resolution);
-            vfx.SetVector3("BoundsSize", boundSize);
-            vfx.SetVector3("BoundsCentre", boundCentre);
+            vfx.SetVector3("BoundsSize", boundsSize);
+            vfx.SetVector3("BoundsCentre", boundsCentre);
         }
     }
 
-    // public void SetParticles(Vector3[] positions, Color[] colors)
-    public void SetParticles(List<Vector3> positions, Color[] colors)
+    public void SetParticles(List<Vector3> positions)
     {
         texColor = new Texture2D(positions.Count > (int)resolution ? (int)resolution : positions.Count, Mathf.Clamp(positions.Count / (int)resolution, 1, (int)resolution), TextureFormat.RGBAFloat, false);
         texPosScale = new Texture2D(positions.Count > (int)resolution ? (int)resolution : positions.Count, Mathf.Clamp(positions.Count / (int)resolution, 1, (int)resolution), TextureFormat.RGBAFloat, false);
@@ -114,7 +98,7 @@ public class PointCloudRenderer : MonoBehaviour
         return (val - min) / (max - min);
     }
 
-    string ReadFile(){
+    string[] ReadFile(){
         // File to read in and pass to our streamReader
         string filePath = "Assets/kf_output.ply";
         StreamReader streamReader = new StreamReader(filePath);
@@ -123,11 +107,9 @@ public class PointCloudRenderer : MonoBehaviour
         string[] headerRemoved = pointFile.Split("end_header");
         // Stringify the first element which contains point and normal data
         string dataString = headerRemoved[1];
-        // Split based on new lines
-        // string[] seperateLines = dataString.Split("\n");
         streamReader.Close();
+        // Split on newlines and return
         return dataString.Split("\n");
-        // GilgaMesh(pointVertices);
     }
 
     void SetVertices(string[] points){
@@ -156,12 +138,12 @@ public class PointCloudRenderer : MonoBehaviour
         // Debug.Log(array);
 
         // var mesh = new Mesh{ name = "procedural_mesh" };
-        mesh.vertices = array;
+        // mesh.vertices = array;
         for (int i = 0; i < array.Length; i++)
         {
             Debug.Log(array[i]);
         }
         // GetComponent<MeshFilter>().mesh = mesh; 
-        mesh.triangles = new int[] {0,2,1};
+        // mesh.triangles = new int[] {0,2,1};
     }
 }
