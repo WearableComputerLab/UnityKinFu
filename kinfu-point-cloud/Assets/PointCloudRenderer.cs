@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.VFX;
 using System.IO;
+using UnityEditor;
 
 public class PointCloudRenderer : MonoBehaviour
 {
@@ -18,7 +19,10 @@ public class PointCloudRenderer : MonoBehaviour
     // if camera cannot see bounds (determined via boundsSize) it
     // will clip pointcloud
     public Vector3 boundsSize;
-    public Vector3 boundsCentre;    
+    public Vector3 boundsCentre;
+
+    // Assign an object in the editor (*.ply, etc.)
+    public Object pointCloudObject;
 
     //List for dynamic assignment
     List<Vector3> pointVertices= new List<Vector3>();
@@ -31,8 +35,7 @@ public class PointCloudRenderer : MonoBehaviour
         // Use point list to create vector3 points
         SetVertices(vertexPoints);  
         // After we've assigned points we can build the cloud
-        SetParticles(pointVertices);
-        
+        SetParticles(pointVertices);        
     }
 
     private void Update() {
@@ -42,9 +45,8 @@ public class PointCloudRenderer : MonoBehaviour
     /// Reads the file and splits it up returning an array of strings
     /// which should represent points in the point cloud
     string[] ReadFile() {
-        // File to read in and pass to our streamReader
-        string filePath = "Assets/kf_output.ply";
-        StreamReader streamReader = new StreamReader(filePath);
+        // Object passed to streamreader which grabs the file path from the object itself
+        StreamReader streamReader = new StreamReader(AssetDatabase.GetAssetPath(pointCloudObject));
         string pointFile = streamReader.ReadToEnd();
         // Split into array to seperate header and point data
         string[] headerRemoved = pointFile.Split("end_header");
@@ -84,9 +86,9 @@ public class PointCloudRenderer : MonoBehaviour
             for (int x = 0; x < texWidth; x++) {
                 int index = x + y * texWidth;
 
-                // not sure if positions[positions.Count].z represents the furthest point on z as
+                // not sure if positions[positions.Count - 1].z represents the furthest point on z as
                 // it is just the last point in the point list, which could be arbitrarily defined
-                float percentageDistance = decimalPercent(positions[index].z, 0, positions[positions.Count].z);
+                float percentageDistance = decimalPercent(positions[index].z, 0, positions[positions.Count - 1].z);
                 // When colouring pixels we set this so that closest renders lighter than further away pixels from origin
                 float difference = (percentageDistance - 1) * -1;
 
