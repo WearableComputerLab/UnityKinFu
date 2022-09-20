@@ -545,6 +545,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   connectedLabel: {fileID: 492529639}
+  logLevel: 2
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -922,7 +923,7 @@ MonoBehaviour:
       m_Calls:
       - m_Target: {fileID: 330585548}
         m_TargetAssemblyTypeName: NativePlugin, Assembly-CSharp
-        m_MethodName: ConnectAndStartCameras
+        m_MethodName: ConnectCamera
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}

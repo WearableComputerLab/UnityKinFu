@@ -7,29 +7,7 @@
 
 #include "kinfu-unity.h"
 
-PrintMessageCallback printMessage = NULL;
-void PrintMessage(int level, const char* msg)
-{
-    if (printMessage != NULL)
-    {
-        printMessage(level, msg);
-    }
-
-    printf(msg);
-}
-
-void KinFuMessageHandler(void* context,
-    k4a_log_level_t level,
-    const char* file,
-    const int line,
-    const char* message) {
-    PrintMessage(level, message);
-}
-void RegisterPrintMessageCallback(PrintMessageCallback callback, int level)
-{
-    printMessage = callback;
-    k4a_set_debug_message_handler(&KinFuMessageHandler, NULL, (k4a_log_level_t)level);
-}
+#include <sstream>
 
 // The currently connected device
 k4a_device_t device = NULL;
@@ -46,19 +24,81 @@ Ptr<kinfu::KinFu> kf;
 pinhole_t pinhole;
 interpolation_t interpolation_type = INTERPOLATION_BILINEAR_DEPTH;
 
-// For the point cloud
-UMat points;
-UMat normals;
+PrintMessageCallback printMessage = NULL;
+void PrintMessage(int level, const char *msg)
+{
+    if (printMessage != nullptr)
+    {
+        printMessage(level, msg);
+    }
+
+    printf(msg);
+}
+
+void KinFuMessageHandler(void *context, k4a_log_level_t level, const char *file, const int line, const char *message)
+{
+    PrintMessage(level, message);
+}
+
+void RegisterPrintMessageCallback(PrintMessageCallback callback, int level)
+{
+    printMessage = callback;
+    k4a_set_debug_message_handler(&KinFuMessageHandler, NULL, (k4a_log_level_t)level);
+}
+
+CloudDataCallback sendCloudData = NULL;
+void RegisterCloudDataCallback(CloudDataCallback callback)
+{
+    sendCloudData = callback;
+}
+
+PoseDataCallback sendPoseData = NULL;
+void RegisterPoseDataCallback(PoseDataCallback callback)
+{
+    sendPoseData = callback;
+}
+
+void requestPose()
+{
+    if (sendPoseData == nullptr) return;
+
+    auto pose = kf->getPose();
+    std::stringstream matrix_output;
+
+    for (int row = 0; row < pose.matrix.rows; row++)
+    {
+        matrix_output << "[ ";
+        for (int col = 0; col < pose.matrix.cols; col++)
+        {
+            auto cell = pose.matrix(row, col);
+            matrix_output << std::fixed << cell;
+
+            if (col < pose.matrix.cols - 1)
+            {
+                matrix_output << ", ";
+            }
+        }
+
+        matrix_output << " ]\n";
+    }
+
+    PrintMessage(K4A_LOG_LEVEL_INFO, matrix_output.str().c_str());
+    sendPoseData(pose.matrix.val);
+}
 
 int getConnectedSensorCount()
 {
     return k4a_device_get_installed_count();
 }
 
-int connectAndStartCameras() {
-    if (!connectToDefaultDevice()) return -1;
-    if (!setupConfigAndCalibrate()) return -2;
-    if (!startCameras()) return -3;
+int connectAndStartCameras()
+{
+    if (!connectToDefaultDevice())
+        return -1;
+    if (!setupConfigAndCalibrate())
+        return -2;
+    if (!startCameras())
+        return -3;
 
     return 0;
 }
@@ -218,11 +258,33 @@ bool captureFrame()
     }
 
     // get cloud
+    Mat points, normals;
     kf->getCloud(points, normals);
 
     k4a_image_release(depth_image);
     k4a_image_release(undistorted_depth_image);
     k4a_capture_release(capture);
+
+    if (sendCloudData != nullptr)
+    {
+        auto out_points = new float[points.rows * 3];
+        auto out_normals = new float[points.rows * 3];
+        for (int i = 0; i < points.rows; ++i)
+        {
+            out_points[i + 0] = points.at<float>(i, 0);
+            out_points[i + 1] = points.at<float>(i, 1);
+            out_points[i + 2] = points.at<float>(i, 2);
+
+            out_normals[i + 0] = normals.at<float>(i, 0);
+            out_normals[i + 1] = normals.at<float>(i, 1);
+            out_normals[i + 2] = normals.at<float>(i, 2);
+        }
+
+        sendCloudData(points.rows, out_points, out_normals);
+
+        delete[] out_normals;
+        delete[] out_points;
+    }
 
     return true;
 }

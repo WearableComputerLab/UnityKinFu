@@ -16,6 +16,13 @@ extern "C"
 	typedef void (*PrintMessageCallback)(int level, const char *);
 	KINFUUNITY_API void RegisterPrintMessageCallback(PrintMessageCallback callback, int level);
 
+	typedef void (*CloudDataCallback)(int count, float* points, float* normals);
+	KINFUUNITY_API void RegisterCloudDataCallback(CloudDataCallback callback);
+
+	typedef void (*PoseDataCallback)(float* matrix);
+	KINFUUNITY_API void RegisterPoseDataCallback(PoseDataCallback callback);
+	KINFUUNITY_API void requestPose();
+
 	KINFUUNITY_API int getConnectedSensorCount();
 	KINFUUNITY_API bool connectToDevice(int deviceIndex);
 	KINFUUNITY_API bool connectToDefaultDevice();
