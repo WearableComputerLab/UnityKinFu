@@ -43,6 +43,19 @@ public class NativePlugin : MonoBehaviour
     [DllImport("kinfuunity", EntryPoint = "closeDevice")]
     public static extern void closeDevice();
 
+
+    unsafe delegate void CloudDataCallback (int count, float* points, float* normals);
+
+    [DllImport("kinfuunity", EntryPoint = "RegisterCloudDataCallback")]
+    static extern void RegisterCloudDataCallback(CloudDataCallback callback);
+
+    unsafe delegate void PoseDataCallback (float* matrix);
+    [DllImport("kinfuunity", EntryPoint = "RegisterPoseDataCallback")]
+    static extern void RegisterPoseDataCallback(PoseDataCallback callback);
+
+    [DllImport("kinfuunity", EntryPoint = "requestPose")]
+    static extern void requestPose();
+
     delegate void PrintMessageCallback(int level, string msg);
 
     [DllImport("kinfuunity", EntryPoint = "RegisterPrintMessageCallback")]
@@ -67,8 +80,28 @@ public class NativePlugin : MonoBehaviour
         }
     }
 
+    [AOT.MonoPInvokeCallback(typeof(CloudDataCallback))]
+    unsafe static void RecieveCloudData(int count, float* points, float* normals)
+    {
+        // Copy values into internal buffers, as they will be freed after this method;
+        Debug.LogFormat("Recieved {0} points in cloud", count);
+    }
+
+    [AOT.MonoPInvokeCallback(typeof(CloudDataCallback))]
+    unsafe static void RecievePoseData(float* matrix)
+    {
+        // Copy values into internal buffers, as they will be freed after this method
+        // This is a 4x4 transform for the camera
+        Debug.LogFormat("Recieved pose matrix");
+    }
+
     private void Awake() {
-        RegisterPrintMessageCallback(PrintMessage, ((int)logLevel));    
+        RegisterPrintMessageCallback(PrintMessage, ((int)logLevel));
+        unsafe
+        {
+            RegisterCloudDataCallback(RecieveCloudData);
+            RegisterPoseDataCallback(RecievePoseData);
+        }
     }
 
     void Update()
@@ -111,8 +144,15 @@ public class NativePlugin : MonoBehaviour
         Debug.LogFormat("captureFrame: {0}", success);
     }
 
+    public void RequestPose()
+    {
+        requestPose();
+        Debug.Log("Pose Requested");
+    }
+
     public void CloseCamera()
     {
         closeDevice();
+        Debug.Log("Device Closed");
     }
 }
