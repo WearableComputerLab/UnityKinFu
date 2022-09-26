@@ -271,13 +271,13 @@ bool captureFrame()
         auto out_normals = new float[points.rows * 3];
         for (int i = 0; i < points.rows; ++i)
         {
-            out_points[i + 0] = points.at<float>(i, 0);
-            out_points[i + 1] = points.at<float>(i, 1);
-            out_points[i + 2] = points.at<float>(i, 2);
+            out_points[i * 3 + 0] = points.at<float>(i, 0);
+            out_points[i * 3 + 1] = points.at<float>(i, 1);
+            out_points[i * 3 + 2] = points.at<float>(i, 2);
 
-            out_normals[i + 0] = normals.at<float>(i, 0);
-            out_normals[i + 1] = normals.at<float>(i, 1);
-            out_normals[i + 2] = normals.at<float>(i, 2);
+            out_normals[i * 3 + 0] = normals.at<float>(i, 0);
+            out_normals[i * 3 + 1] = normals.at<float>(i, 1);
+            out_normals[i * 3 + 2] = normals.at<float>(i, 2);
         }
 
         sendCloudData(points.rows, out_points, out_normals);

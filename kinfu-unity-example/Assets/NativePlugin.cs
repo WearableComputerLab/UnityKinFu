@@ -3,9 +3,19 @@ using System.Collections.Generic;
 using UnityEngine;
 
 using System.Runtime.InteropServices;
+using UnityEngine.Events;
+using Unity.VisualScripting;
 
 public class NativePlugin : MonoBehaviour
 {
+    public static NativePlugin Instance
+    {
+        get;
+        private set;
+    }
+
+    public UnityEvent<List<Vector3>> pointCloudUpdated;
+
     public enum KinFuLogLevels
     {
         Critical = 0,
@@ -83,8 +93,20 @@ public class NativePlugin : MonoBehaviour
     [AOT.MonoPInvokeCallback(typeof(CloudDataCallback))]
     unsafe static void RecieveCloudData(int count, float* points, float* normals)
     {
-        // Copy values into internal buffers, as they will be freed after this method;
+        // Copy values into internal buffers, as they will be freed after this method
+        List<Vector3> positions = new List<Vector3>(count);
+        List<Vector3> vertexNormals = new List<Vector3>(count);
         Debug.LogFormat("Recieved {0} points in cloud", count);
+        for (int i = 0; i < count; i++)
+        {
+            positions.Add(new Vector3(points[i * 3], points[i * 3 + 1], points[i * 3 + 2]));
+            vertexNormals.Add(new Vector3(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]));
+        }
+
+        if (Instance.pointCloudUpdated != null)
+        {
+            Instance.pointCloudUpdated.Invoke(positions);
+        }
     }
 
     [AOT.MonoPInvokeCallback(typeof(CloudDataCallback))]
@@ -96,6 +118,15 @@ public class NativePlugin : MonoBehaviour
     }
 
     private void Awake() {
+
+        if (Instance != null)
+        {
+            this.enabled = false;
+            return;
+        }
+
+        Instance = this;
+
         RegisterPrintMessageCallback(PrintMessage, ((int)logLevel));
         unsafe
         {
