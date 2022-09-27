@@ -46,12 +46,6 @@ void RegisterPrintMessageCallback(PrintMessageCallback callback, int level)
     k4a_set_debug_message_handler(&KinFuMessageHandler, NULL, (k4a_log_level_t)level);
 }
 
-CloudDataCallback sendCloudData = NULL;
-void RegisterCloudDataCallback(CloudDataCallback callback)
-{
-    sendCloudData = callback;
-}
-
 PoseDataCallback sendPoseData = NULL;
 void RegisterPoseDataCallback(PoseDataCallback callback)
 {
@@ -60,29 +54,10 @@ void RegisterPoseDataCallback(PoseDataCallback callback)
 
 void requestPose()
 {
-    if (sendPoseData == nullptr) return;
+    if (sendPoseData == nullptr)
+        return;
 
     auto pose = kf->getPose();
-    std::stringstream matrix_output;
-
-    for (int row = 0; row < pose.matrix.rows; row++)
-    {
-        matrix_output << "[ ";
-        for (int col = 0; col < pose.matrix.cols; col++)
-        {
-            auto cell = pose.matrix(row, col);
-            matrix_output << std::fixed << cell;
-
-            if (col < pose.matrix.cols - 1)
-            {
-                matrix_output << ", ";
-            }
-        }
-
-        matrix_output << " ]\n";
-    }
-
-    PrintMessage(K4A_LOG_LEVEL_INFO, matrix_output.str().c_str());
     sendPoseData(pose.matrix.val);
 }
 
@@ -124,6 +99,8 @@ inline bool connectToDefaultDevice()
 bool setupConfigAndCalibrate()
 {
     config = K4A_DEVICE_CONFIG_INIT_DISABLE_ALL;
+    config.color_format = K4A_IMAGE_FORMAT_COLOR_BGRA32;
+    config.color_resolution = K4A_COLOR_RESOLUTION_1080P;
     config.depth_mode = K4A_DEPTH_MODE_NFOV_UNBINNED;
     config.camera_fps = K4A_FRAMES_PER_SECOND_30;
 
@@ -190,16 +167,131 @@ bool startCameras()
     return true;
 }
 
-bool captureFrame()
-{
+const int32_t TIMEOUT_IN_MS = 1000;
 
-    k4a_capture_t capture = NULL;
+void captureColorImage(k4a_capture_t capture, unsigned char* data) {
+
+    // Retrieve color image
+    k4a_image_t color_image = k4a_capture_get_color_image(capture);
+    if (color_image == NULL)
+    {
+        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "color None\n");
+        return;
+    }
+
+    // Create frame from color buffer
+    uint8_t* buffer = k4a_image_get_buffer(color_image);
+
+    //
+    // image comes in upside down for our case
+    // So we read it backwards and add into a new buffer
+    size_t size = k4a_image_get_size(color_image);
+    //auto stride = k4a_image_get_stride_bytes(color_image);
+    //std::stringstream msg;
+    //msg << "size: " << size << " stride: " << stride;
+    //PrintMessage(K4A_LOG_LEVEL_INFO, msg.str().c_str());
+
+    // This should be smarter (i.e stride / width to get bytes per pixel)
+    // But I want something now and I know it's 4 bytes
+    uint8_t* flipped = new uint8_t[size];
+    std::memset(flipped, 0x0, size);
+
+    for (int i = 0; i < size - 4; i += 4)
+    {
+        // Blue Channel
+        flipped[i + 2] = buffer[i + 0];
+        // Green 
+        flipped[i + 1] = buffer[i + 1];
+        // Red (because the image is in BGRA not RGBA)
+        flipped[i + 0] = buffer[i + 2];
+        // Alpha
+        flipped[i + 3] = buffer[i + 3];
+    }
+
+    std::memcpy(data, flipped, size);
+
+    delete[] flipped;
+    k4a_image_release(color_image);
+}
+
+const int maxPoints = 1000000 * 3;
+auto out_points = new float[maxPoints];
+auto out_normals = new float[maxPoints];
+
+int capturePointCloud(k4a_capture_t capture, unsigned char* point_data) {
     k4a_image_t depth_image = NULL;
     k4a_image_t undistorted_depth_image = NULL;
-    const int32_t TIMEOUT_IN_MS = 1000;
 
     const int width = calibration.depth_camera_calibration.resolution_width;
     const int height = calibration.depth_camera_calibration.resolution_height;
+
+    // Retrieve depth image
+    depth_image = k4a_capture_get_depth_image(capture);
+    if (depth_image == NULL)
+    {
+        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Depth16 None\n");
+        return 0;
+    }
+
+    k4a_image_create(K4A_IMAGE_FORMAT_DEPTH16,
+        pinhole.width,
+        pinhole.height,
+        pinhole.width * (int)sizeof(uint16_t),
+        &undistorted_depth_image);
+    remap(depth_image, lut, undistorted_depth_image, interpolation_type);
+
+    // Create frame from depth buffer
+    uint8_t* buffer = k4a_image_get_buffer(undistorted_depth_image);
+    uint16_t* depth_buffer = reinterpret_cast<uint16_t*>(buffer);
+    UMat undistortedFrame;
+    create_mat_from_buffer(depth_buffer, width, height, 1).copyTo(undistortedFrame);
+
+    if (undistortedFrame.empty())
+    {
+        k4a_image_release(depth_image);
+        k4a_image_release(undistorted_depth_image);
+        return 0;
+    }
+
+    // Update KinectFusion
+    if (!kf->update(undistortedFrame))
+    {
+        PrintMessage(K4A_LOG_LEVEL_INFO, "Reset KinectFusion\n");
+        kf->reset();
+        k4a_image_release(depth_image);
+        k4a_image_release(undistorted_depth_image);
+        return 0;
+    }
+
+    // get cloud
+    Mat points, normals;
+    kf->getCloud(points, normals);
+
+    k4a_image_release(depth_image);
+    k4a_image_release(undistorted_depth_image);
+
+    int size = points.rows;
+    memset(out_points, 0x0, maxPoints);
+        
+    for (int i = 0; i < size; i++)
+    {
+        out_points[i * 3 + 0] = points.at<float>(i, 0);
+        out_points[i * 3 + 1] = points.at<float>(i, 1);
+        out_points[i * 3 + 2] = points.at<float>(i, 2);
+
+        out_normals[i * 3 + 0] = normals.at<float>(i, 0);
+        out_normals[i * 3 + 1] = normals.at<float>(i, 1);
+        out_normals[i * 3 + 2] = normals.at<float>(i, 2);
+    }
+
+    std::memcpy(point_data, out_points, sizeof(float) * size);
+
+    return size;
+}
+
+int captureFrame(unsigned char* color_data, unsigned char* point_data)
+{
+    k4a_capture_t capture = NULL;
 
     // Get a depth frame
     switch (k4a_device_get_capture(device, &capture, TIMEOUT_IN_MS))
@@ -213,80 +305,16 @@ bool captureFrame()
     case K4A_WAIT_RESULT_FAILED:
         PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Failed to read a capture\n");
         closeDevice();
-        return false;
+        return 0;
     }
 
-    // Retrieve depth image
-    depth_image = k4a_capture_get_depth_image(capture);
-    if (depth_image == NULL)
-    {
-        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Depth16 None\n");
-        k4a_capture_release(capture);
-        return false;
-    }
+    captureColorImage(capture, color_data);
 
-    k4a_image_create(K4A_IMAGE_FORMAT_DEPTH16,
-                     pinhole.width,
-                     pinhole.height,
-                     pinhole.width * (int)sizeof(uint16_t),
-                     &undistorted_depth_image);
-    remap(depth_image, lut, undistorted_depth_image, interpolation_type);
+    int points = capturePointCloud(capture, point_data);
 
-    // Create frame from depth buffer
-    uint8_t *buffer = k4a_image_get_buffer(undistorted_depth_image);
-    uint16_t *depth_buffer = reinterpret_cast<uint16_t *>(buffer);
-    UMat undistortedFrame;
-    create_mat_from_buffer(depth_buffer, width, height, 1).copyTo(undistortedFrame);
-
-    if (undistortedFrame.empty())
-    {
-        k4a_image_release(depth_image);
-        k4a_image_release(undistorted_depth_image);
-        k4a_capture_release(capture);
-        return true;
-    }
-
-    // Update KinectFusion
-    if (!kf->update(undistortedFrame))
-    {
-        PrintMessage(K4A_LOG_LEVEL_INFO, "Reset KinectFusion\n");
-        kf->reset();
-        k4a_image_release(depth_image);
-        k4a_image_release(undistorted_depth_image);
-        k4a_capture_release(capture);
-        return true;
-    }
-
-    // get cloud
-    Mat points, normals;
-    kf->getCloud(points, normals);
-
-    k4a_image_release(depth_image);
-    k4a_image_release(undistorted_depth_image);
     k4a_capture_release(capture);
 
-    if (sendCloudData != nullptr)
-    {
-        auto out_points = new float[points.rows * 3];
-        auto out_normals = new float[points.rows * 3];
-        for (int i = 0; i < points.rows; ++i)
-        {
-            out_points[i * 3 + 0] = points.at<float>(i, 0);
-            out_points[i * 3 + 1] = points.at<float>(i, 1);
-            out_points[i * 3 + 2] = points.at<float>(i, 2);
-
-            out_normals[i * 3 + 0] = normals.at<float>(i, 0);
-            out_normals[i * 3 + 1] = normals.at<float>(i, 1);
-            out_normals[i * 3 + 2] = normals.at<float>(i, 2);
-        }
-
-        sendCloudData(points.rows, out_points, out_normals);
-
-        delete[] out_normals;
-        delete[] out_points;
-    }
-
-    return true;
+    return points;
 }
 
 bool stopCameras()
@@ -297,6 +325,9 @@ bool stopCameras()
 
 void closeDevice()
 {
+    if (device == nullptr)
+        return;
+
     if (lut != NULL)
     {
         k4a_image_release(lut);
@@ -304,4 +335,71 @@ void closeDevice()
     }
 
     k4a_device_close(device);
+    device = nullptr;
+}
+
+void getColorImageBytes(unsigned char *data, int width, int height)
+{
+
+    k4a_capture_t capture = NULL;
+    k4a_image_t color_image = NULL;
+
+    // Get a color frame
+    switch (k4a_device_get_capture(device, &capture, TIMEOUT_IN_MS))
+    {
+    case K4A_WAIT_RESULT_SUCCEEDED:
+        break;
+    case K4A_WAIT_RESULT_TIMEOUT:
+        PrintMessage(K4A_LOG_LEVEL_INFO, "Timed out waiting for a capture\n");
+        return;
+
+    case K4A_WAIT_RESULT_FAILED:
+        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Failed to read a capture\n");
+        closeDevice();
+        return;
+    }
+
+    // Retrieve color image
+    color_image = k4a_capture_get_color_image(capture);
+    if (color_image == NULL)
+    {
+        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "color None\n");
+        k4a_capture_release(capture);
+        return;
+    }
+
+    // Create frame from color buffer
+    uint8_t *buffer = k4a_image_get_buffer(color_image);
+
+    //
+    // image comes in upside down for our case
+    // So we read it backwards and add into a new buffer
+    size_t size = k4a_image_get_size(color_image);
+    //auto stride = k4a_image_get_stride_bytes(color_image);
+    //std::stringstream msg;
+    //msg << "size: " << size << " stride: " << stride;
+    //PrintMessage(K4A_LOG_LEVEL_INFO, msg.str().c_str());
+
+    // This should be smarter (i.e stride / width to get bytes per pixel)
+    // But I want something now and I know it's 4 bytes
+    uint8_t* flipped = new uint8_t[size];
+    std::memset(flipped, 0x0, size);
+
+    for (int i = 0; i < size - 4; i += 4)
+    {
+        // Blue Channel
+        flipped[i + 2] = buffer[i + 0];
+        // Green 
+        flipped[i + 1] = buffer[i + 1];
+        // Red (because the image is in BGRA not RGBA)
+        flipped[i + 0] = buffer[i + 2];
+        // Alpha
+        flipped[i + 3] = buffer[i + 3];
+    }
+
+    std::memcpy(data, flipped, size);
+    
+    delete[] flipped;
+    k4a_image_release(color_image);
+    k4a_capture_release(capture);
 }

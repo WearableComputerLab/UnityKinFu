@@ -85,18 +85,23 @@ public class PointCloudRenderer : MonoBehaviour
 
         int texWidth = texColor.width;
         int texHeight = texColor.height;
+
         Bounds cloudBounds = new Bounds();
+
+        float minZ = 0f;
+        foreach (var position in positions)
+        {
+            if (position.z > minZ) minZ = position.z;
+
+            cloudBounds.Encapsulate(position);
+        }
 
         for (int y = 0; y < texHeight; y++) {
             for (int x = 0; x < texWidth; x++) {
                 int index = x + y * texWidth;
                 Vector3 point = positions[index];
 
-                cloudBounds.Encapsulate(point);
-
-                // not sure if positions[positions.Count - 1].z represents the furthest point on z as
-                // it is just the last point in the point list, which could be arbitrarily defined
-                float percentageDistance = decimalPercent(point.z, 0, positions[positions.Count - 1].z);
+                float percentageDistance = decimalPercent(point.z, 0, minZ);
                 // When colouring pixels we set this so that closest renders lighter than further away pixels from origin
                 float difference = (percentageDistance - 1) * -1;
 
