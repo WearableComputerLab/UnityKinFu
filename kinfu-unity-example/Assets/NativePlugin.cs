@@ -15,6 +15,10 @@ public class NativePlugin : MonoBehaviour
     }
 
     public UnityEvent<List<Vector3>> pointCloudUpdated;
+    public UnityEvent<Matrix4x4> poseUpdated;
+
+    Coroutine automaticUpdate;
+    public TMPro.TMP_Text automaticUpdateLabel;
 
     public enum KinFuLogLevels
     {
@@ -115,6 +119,19 @@ public class NativePlugin : MonoBehaviour
         // Copy values into internal buffers, as they will be freed after this method
         // This is a 4x4 transform for the camera
         Debug.LogFormat("Recieved pose matrix");
+        Matrix4x4 poseMatrix = new Matrix4x4();
+        for (int row = 0; row < 4; row++)
+        {
+            for (int col = 0; col < 4; col++)
+            {
+                poseMatrix[row, col] = matrix[row * 4 + col];
+            }
+        }
+
+        if(Instance.poseUpdated != null)
+        {
+            Instance.poseUpdated.Invoke(poseMatrix);
+        }
     }
 
     private void Awake() {
@@ -142,6 +159,37 @@ public class NativePlugin : MonoBehaviour
         if (connectedLabel != null)
         {
             connectedLabel.text = string.Format("Connected Devices: {0}", devices);
+        }
+    }
+
+    private void OnApplicationQuit()
+    {
+        CloseCamera();
+    }
+
+    public void ToggleAutomaticUpdate()
+    {
+        if (automaticUpdate == null)
+        {
+            automaticUpdate = StartCoroutine(AutomatedUpdateLoop());
+            automaticUpdateLabel.text = "Stop Auto Updates"; 
+        }
+        else
+        {
+            StopCoroutine(automaticUpdate);
+            automaticUpdate = null;
+            automaticUpdateLabel.text = "Start Auto Updates";
+        }
+    }
+
+    IEnumerator AutomatedUpdateLoop()
+    {
+        while (true)
+        {
+            CaptureFrame();
+            RequestPose();
+
+            yield return new WaitForSecondsRealtime(1);
         }
     }
 
