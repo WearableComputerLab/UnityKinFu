@@ -218,6 +218,12 @@ const int maxPoints = 1000000 * 3;
 auto out_points = new float[maxPoints];
 auto out_normals = new float[maxPoints];
 
+void reset()
+{
+    if (kf != NULL)
+        kf->reset();
+}
+
 int capturePointCloud(k4a_capture_t capture, unsigned char* point_data) {
     k4a_image_t depth_image = NULL;
     k4a_image_t undistorted_depth_image = NULL;
@@ -229,7 +235,7 @@ int capturePointCloud(k4a_capture_t capture, unsigned char* point_data) {
     depth_image = k4a_capture_get_depth_image(capture);
     if (depth_image == NULL)
     {
-        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Depth16 None\n");
+        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "k4a_capture_get_depth_image returned NULL\n");
         return 0;
     }
 
@@ -248,6 +254,7 @@ int capturePointCloud(k4a_capture_t capture, unsigned char* point_data) {
 
     if (undistortedFrame.empty())
     {
+        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Undistorted frame is empty\n");
         k4a_image_release(depth_image);
         k4a_image_release(undistorted_depth_image);
         return 0;
@@ -256,8 +263,8 @@ int capturePointCloud(k4a_capture_t capture, unsigned char* point_data) {
     // Update KinectFusion
     if (!kf->update(undistortedFrame))
     {
-        PrintMessage(K4A_LOG_LEVEL_INFO, "Reset KinectFusion\n");
-        kf->reset();
+        PrintMessage(K4A_LOG_LEVEL_INFO, "Did not update from frame\n");
+//        kf->reset();
         k4a_image_release(depth_image);
         k4a_image_release(undistorted_depth_image);
         return 0;
@@ -272,6 +279,11 @@ int capturePointCloud(k4a_capture_t capture, unsigned char* point_data) {
 
     int size = points.rows;
     memset(out_points, 0x0, maxPoints);
+
+    if (size > maxPoints) {
+        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Size exceeds points!!");
+        return -size;
+    }
         
     for (int i = 0; i < size; i++)
     {

@@ -69,9 +69,12 @@ public class NativePlugin : MonoBehaviour
     
     [DllImport("kinfuunity", EntryPoint = "captureFrame")]
     public static extern int captureFrame(IntPtr color_data, IntPtr point_data);
-    
+
     [DllImport("kinfuunity", EntryPoint = "closeDevice")]
     public static extern void closeDevice();
+
+    [DllImport("kinfuunity", EntryPoint = "reset")]
+    public static extern void resetDevice();
 
     [DllImport("kinfuunity", EntryPoint = "getColorImageBytes")]
     private static extern void getColorImageBytes(IntPtr data, int width, int height);
@@ -109,7 +112,11 @@ public class NativePlugin : MonoBehaviour
 
     private void ProcessPoints(int numPoints)
     {
-        if (numPoints <= 0) return;
+        if (numPoints <= 0)
+        {
+            Debug.LogFormat("No Points: {0}", numPoints);
+            return;
+        }
 
         List<Vector3> positions = new List<Vector3>(numPoints / 3);
         for (int i = 0; i < numPoints - 3; i += 3)
@@ -209,10 +216,10 @@ public class NativePlugin : MonoBehaviour
         while (true)
         {
             CaptureFrame();
-            //RequestPose();
+            RequestPose();
             GetColorImage();
 
-            yield return null;// new WaitForSecondsRealtime(1);
+            yield return new WaitForSecondsRealtime(1.0f/15.0f);
         }
     }
     
@@ -281,5 +288,11 @@ public class NativePlugin : MonoBehaviour
     {
         closeDevice();
         Debug.Log("Device Closed");
+    }
+
+    public void ResetDevice()
+    {
+        resetDevice();
+        Debug.Log("Device Reset");
     }
 }
