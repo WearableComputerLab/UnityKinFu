@@ -26,10 +26,11 @@ extern "C"
 	KINFUUNITY_API bool setupConfigAndCalibrate();
 	KINFUUNITY_API bool startCameras();
 	KINFUUNITY_API int connectAndStartCameras();
-	KINFUUNITY_API int captureFrame(unsigned char* color_data, unsigned char* point_data);
+	KINFUUNITY_API int captureFrame(unsigned char *color_data);
 	KINFUUNITY_API bool stopCameras();
 	KINFUUNITY_API void closeDevice();
 	KINFUUNITY_API void reset();
 
 	KINFUUNITY_API void getColorImageBytes(unsigned char *data, int width, int height);
+	KINFUUNITY_API int capturePointCloud(unsigned char *point_data);
 }

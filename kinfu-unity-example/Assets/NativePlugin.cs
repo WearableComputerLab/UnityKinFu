@@ -68,7 +68,10 @@ public class NativePlugin : MonoBehaviour
     public static extern bool startCameras();
     
     [DllImport("kinfuunity", EntryPoint = "captureFrame")]
-    public static extern int captureFrame(IntPtr color_data, IntPtr point_data);
+    public static extern int captureFrame(IntPtr color_data);
+
+    [DllImport("kinfuunity", EntryPoint = "capturePointCloud")]
+    public static extern int capturePointCloud(IntPtr point_data);
 
     [DllImport("kinfuunity", EntryPoint = "closeDevice")]
     public static extern void closeDevice();
@@ -271,9 +274,14 @@ public class NativePlugin : MonoBehaviour
 
     public void CaptureFrame()
     {
-        var numPoints = captureFrame(pixelPtr, pointsPtr);
+        var numPoints = captureFrame(pixelPtr);
         tex.SetPixels32(pixel32);
         tex.Apply();
+    }
+
+    public void CapturePoints() {
+
+        var numPoints = capturePointCloud(pointsPtr);
 
         ProcessPoints(numPoints);
     }

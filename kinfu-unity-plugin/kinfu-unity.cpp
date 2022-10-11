@@ -169,7 +169,8 @@ bool startCameras()
 
 const int32_t TIMEOUT_IN_MS = 1000;
 
-void captureColorImage(k4a_capture_t capture, unsigned char* data) {
+void captureColorImage(k4a_capture_t capture, unsigned char *data)
+{
 
     // Retrieve color image
     k4a_image_t color_image = k4a_capture_get_color_image(capture);
@@ -180,27 +181,27 @@ void captureColorImage(k4a_capture_t capture, unsigned char* data) {
     }
 
     // Create frame from color buffer
-    uint8_t* buffer = k4a_image_get_buffer(color_image);
+    uint8_t *buffer = k4a_image_get_buffer(color_image);
 
     //
     // image comes in upside down for our case
     // So we read it backwards and add into a new buffer
     size_t size = k4a_image_get_size(color_image);
-    //auto stride = k4a_image_get_stride_bytes(color_image);
-    //std::stringstream msg;
-    //msg << "size: " << size << " stride: " << stride;
-    //PrintMessage(K4A_LOG_LEVEL_INFO, msg.str().c_str());
+    // auto stride = k4a_image_get_stride_bytes(color_image);
+    // std::stringstream msg;
+    // msg << "size: " << size << " stride: " << stride;
+    // PrintMessage(K4A_LOG_LEVEL_INFO, msg.str().c_str());
 
     // This should be smarter (i.e stride / width to get bytes per pixel)
     // But I want something now and I know it's 4 bytes
-    uint8_t* flipped = new uint8_t[size];
+    uint8_t *flipped = new uint8_t[size];
     std::memset(flipped, 0x0, size);
 
     for (int i = 0; i < size - 4; i += 4)
     {
         // Blue Channel
         flipped[i + 2] = buffer[i + 0];
-        // Green 
+        // Green
         flipped[i + 1] = buffer[i + 1];
         // Red (because the image is in BGRA not RGBA)
         flipped[i + 0] = buffer[i + 2];
@@ -224,67 +225,21 @@ void reset()
         kf->reset();
 }
 
-int capturePointCloud(k4a_capture_t capture, unsigned char* point_data) {
-    k4a_image_t depth_image = NULL;
-    k4a_image_t undistorted_depth_image = NULL;
-
-    const int width = calibration.depth_camera_calibration.resolution_width;
-    const int height = calibration.depth_camera_calibration.resolution_height;
-
-    // Retrieve depth image
-    depth_image = k4a_capture_get_depth_image(capture);
-    if (depth_image == NULL)
-    {
-        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "k4a_capture_get_depth_image returned NULL\n");
-        return 0;
-    }
-
-    k4a_image_create(K4A_IMAGE_FORMAT_DEPTH16,
-        pinhole.width,
-        pinhole.height,
-        pinhole.width * (int)sizeof(uint16_t),
-        &undistorted_depth_image);
-    remap(depth_image, lut, undistorted_depth_image, interpolation_type);
-
-    // Create frame from depth buffer
-    uint8_t* buffer = k4a_image_get_buffer(undistorted_depth_image);
-    uint16_t* depth_buffer = reinterpret_cast<uint16_t*>(buffer);
-    UMat undistortedFrame;
-    create_mat_from_buffer(depth_buffer, width, height, 1).copyTo(undistortedFrame);
-
-    if (undistortedFrame.empty())
-    {
-        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Undistorted frame is empty\n");
-        k4a_image_release(depth_image);
-        k4a_image_release(undistorted_depth_image);
-        return 0;
-    }
-
-    // Update KinectFusion
-    if (!kf->update(undistortedFrame))
-    {
-        PrintMessage(K4A_LOG_LEVEL_INFO, "Did not update from frame\n");
-//        kf->reset();
-        k4a_image_release(depth_image);
-        k4a_image_release(undistorted_depth_image);
-        return 0;
-    }
-
+int capturePointCloud(unsigned char *point_data)
+{
     // get cloud
     Mat points, normals;
     kf->getCloud(points, normals);
 
-    k4a_image_release(depth_image);
-    k4a_image_release(undistorted_depth_image);
-
     int size = points.rows;
     memset(out_points, 0x0, maxPoints);
 
-    if (size > maxPoints) {
+    if (size > maxPoints)
+    {
         PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Size exceeds points!!");
         return -size;
     }
-        
+
     for (int i = 0; i < size; i++)
     {
         out_points[i * 3 + 0] = points.at<float>(i, 0);
@@ -301,7 +256,60 @@ int capturePointCloud(k4a_capture_t capture, unsigned char* point_data) {
     return size;
 }
 
-int captureFrame(unsigned char* color_data, unsigned char* point_data)
+int updatePointCloud(k4a_capture_t capture)
+{
+    k4a_image_t depth_image = NULL;
+    k4a_image_t undistorted_depth_image = NULL;
+
+    const int width = calibration.depth_camera_calibration.resolution_width;
+    const int height = calibration.depth_camera_calibration.resolution_height;
+
+    // Retrieve depth image
+    depth_image = k4a_capture_get_depth_image(capture);
+    if (depth_image == NULL)
+    {
+        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "k4a_capture_get_depth_image returned NULL\n");
+        return 0;
+    }
+
+    k4a_image_create(K4A_IMAGE_FORMAT_DEPTH16,
+                     pinhole.width,
+                     pinhole.height,
+                     pinhole.width * (int)sizeof(uint16_t),
+                     &undistorted_depth_image);
+    remap(depth_image, lut, undistorted_depth_image, interpolation_type);
+
+    // Create frame from depth buffer
+    uint8_t *buffer = k4a_image_get_buffer(undistorted_depth_image);
+    uint16_t *depth_buffer = reinterpret_cast<uint16_t *>(buffer);
+    UMat undistortedFrame;
+    create_mat_from_buffer(depth_buffer, width, height, 1).copyTo(undistortedFrame);
+
+    if (undistortedFrame.empty())
+    {
+        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Undistorted frame is empty\n");
+        k4a_image_release(depth_image);
+        k4a_image_release(undistorted_depth_image);
+        return 0;
+    }
+
+    // Update KinectFusion
+    if (!kf->update(undistortedFrame))
+    {
+        PrintMessage(K4A_LOG_LEVEL_INFO, "Did not update from frame\n");
+        //        kf->reset();
+        k4a_image_release(depth_image);
+        k4a_image_release(undistorted_depth_image);
+        return 0;
+    }
+
+    k4a_image_release(depth_image);
+    k4a_image_release(undistorted_depth_image);
+
+    return 1;
+}
+
+int captureFrame(unsigned char *color_data)
 {
     k4a_capture_t capture = NULL;
 
@@ -322,7 +330,7 @@ int captureFrame(unsigned char* color_data, unsigned char* point_data)
 
     captureColorImage(capture, color_data);
 
-    int points = capturePointCloud(capture, point_data);
+    int points = updatePointCloud(capture);
 
     k4a_capture_release(capture);
 
@@ -387,21 +395,21 @@ void getColorImageBytes(unsigned char *data, int width, int height)
     // image comes in upside down for our case
     // So we read it backwards and add into a new buffer
     size_t size = k4a_image_get_size(color_image);
-    //auto stride = k4a_image_get_stride_bytes(color_image);
-    //std::stringstream msg;
-    //msg << "size: " << size << " stride: " << stride;
-    //PrintMessage(K4A_LOG_LEVEL_INFO, msg.str().c_str());
+    // auto stride = k4a_image_get_stride_bytes(color_image);
+    // std::stringstream msg;
+    // msg << "size: " << size << " stride: " << stride;
+    // PrintMessage(K4A_LOG_LEVEL_INFO, msg.str().c_str());
 
     // This should be smarter (i.e stride / width to get bytes per pixel)
     // But I want something now and I know it's 4 bytes
-    uint8_t* flipped = new uint8_t[size];
+    uint8_t *flipped = new uint8_t[size];
     std::memset(flipped, 0x0, size);
 
     for (int i = 0; i < size - 4; i += 4)
     {
         // Blue Channel
         flipped[i + 2] = buffer[i + 0];
-        // Green 
+        // Green
         flipped[i + 1] = buffer[i + 1];
         // Red (because the image is in BGRA not RGBA)
         flipped[i + 0] = buffer[i + 2];
@@ -410,7 +418,7 @@ void getColorImageBytes(unsigned char *data, int width, int height)
     }
 
     std::memcpy(data, flipped, size);
-    
+
     delete[] flipped;
     k4a_image_release(color_image);
     k4a_capture_release(capture);
