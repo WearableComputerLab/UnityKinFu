@@ -4,12 +4,85 @@ using UnityEngine;
 
 using System.Runtime.InteropServices;
 using UnityEngine.Events;
-using Unity.VisualScripting;
 using System;
 using UnityEngine.UI;
-using UnityEngine.Rendering;
-using System.IO;
-using UnityEngine.UIElements;
+using fts;
+
+[PluginAttr("kinfuunity")]
+public static class KinFuUnity
+{
+    [PluginFunctionAttr("getConnectedSensorCount")]
+    public static GetConnectedSensorCount getConnectedSensorCount = null;
+    public delegate int GetConnectedSensorCount();
+
+    [PluginFunctionAttr("connectToDevice")]
+    public static ConnectToDevice connectToDevice = null;
+    public delegate bool ConnectToDevice(int deviceIndex);
+
+    [PluginFunctionAttr("connectToDefaultDevice")]
+    public static ConnectToDefaultDevice connectToDefaultDevice = null;
+    public delegate bool ConnectToDefaultDevice();
+
+    [PluginFunctionAttr("connectAndStartCameras")]
+    public static ConnectAndStartCameras connectAndStartCameras = null;
+    public delegate int ConnectAndStartCameras();
+
+    [PluginFunctionAttr("setupConfigAndCalibrate")]
+    public static SetupConfigAndCalibrate setupConfigAndCalibrate = null;
+    public delegate bool SetupConfigAndCalibrate();
+
+    [PluginFunctionAttr("startCameras")]
+    public static StartCameras startCameras = null;
+    public delegate bool StartCameras();
+
+    [PluginFunctionAttr("captureFrame")]
+    public static CaptureFrame captureFrame = null;
+    public delegate int CaptureFrame(IntPtr color_data);
+
+    [PluginFunctionAttr("capturePointCloud")]
+    public static CapturePointCloud capturePointCloud = null;
+    public delegate int CapturePointCloud(IntPtr point_data);
+
+    [PluginFunctionAttr("closeDevice")]
+    public static CloseDevice closeDevice = null;
+    public delegate void CloseDevice();
+
+    [PluginFunctionAttr("reset")]
+    public static ResetDevice resetDevice = null;
+    public delegate void ResetDevice();
+
+    [PluginFunctionAttr("getColorImageBytes")]
+    public static GetColorImageBytes getColorImageBytes = null;
+    public delegate void GetColorImageBytes(IntPtr data, int width, int height);
+
+    [PluginFunctionAttr("requestPose")]
+    public static RequestPose requestPose = null;
+    public delegate void RequestPose(IntPtr pose_matrix_data);
+
+    [PluginFunctionAttr("registerPrintMessageCallback")]
+    public static RegisterPrintMessageCallback registerPrintMessageCallback = null;
+    public delegate void RegisterPrintMessageCallback(PrintMessageCallback func, int level);
+    public delegate void PrintMessageCallback(int level, string msg);
+
+    [AOT.MonoPInvokeCallback(typeof(PrintMessageCallback))]
+    public static void PrintMessage(int level, string msg)
+    {
+        switch (level)
+        {
+            case 0:
+            case 1:
+                Debug.LogErrorFormat("Kinfu: {0}", msg);
+                break;
+            case 2:
+                Debug.LogWarningFormat("Kinfu: {0}", msg);
+                break;
+
+            default:
+                Debug.LogFormat("Kinfu: {0}", msg);
+                break;
+        }
+    }
+}
 
 public class NativePlugin : MonoBehaviour
 {
@@ -25,6 +98,7 @@ public class NativePlugin : MonoBehaviour
     public UnityEvent<Matrix4x4> poseUpdated;
 
     Coroutine automaticUpdate;
+    Coroutine automaticCloudUpdate;
     public TMPro.TMP_Text automaticUpdateLabel;
 
     public enum KinFuLogLevels
@@ -46,71 +120,62 @@ public class NativePlugin : MonoBehaviour
     private GCHandle pointsHandle;
     private IntPtr pointsPtr;
 
+    private float[] poseMatrixArray;
+    private GCHandle poseMatrixArrayHandle;
+    private IntPtr poseMatrixArrayPtr;
+
     public TMPro.TMP_Text connectedLabel;
     public KinFuLogLevels logLevel = KinFuLogLevels.Warning;
 
-    [DllImport("kinfuunity", EntryPoint = "getConnectedSensorCount")]
-    public static extern int getConnectedSensorCount();
-    
-    [DllImport("kinfuunity", EntryPoint = "connectToDevice")]
-    public static extern bool connectToDevice(int deviceIndex);
+    private void Awake() {
 
-    [DllImport("kinfuunity", EntryPoint = "connectToDefaultDevice")]
-    public static extern bool connectToDefaultDevice();
-
-    [DllImport("kinfuunity", EntryPoint = "connectAndStartCameras")]
-    public static extern int connectAndStartCameras();
-
-    [DllImport("kinfuunity", EntryPoint = "setupConfigAndCalibrate")]
-    public static extern bool setupConfigAndCalibrate();
-    
-    [DllImport("kinfuunity", EntryPoint = "startCameras")]
-    public static extern bool startCameras();
-    
-    [DllImport("kinfuunity", EntryPoint = "captureFrame")]
-    public static extern int captureFrame(IntPtr color_data);
-
-    [DllImport("kinfuunity", EntryPoint = "capturePointCloud")]
-    public static extern int capturePointCloud(IntPtr point_data);
-
-    [DllImport("kinfuunity", EntryPoint = "closeDevice")]
-    public static extern void closeDevice();
-
-    [DllImport("kinfuunity", EntryPoint = "reset")]
-    public static extern void resetDevice();
-
-    [DllImport("kinfuunity", EntryPoint = "getColorImageBytes")]
-    private static extern void getColorImageBytes(IntPtr data, int width, int height);
-
-    unsafe delegate void PoseDataCallback (float* matrix);
-    [DllImport("kinfuunity", EntryPoint = "RegisterPoseDataCallback")]
-    static extern void RegisterPoseDataCallback(PoseDataCallback callback);
-
-    [DllImport("kinfuunity", EntryPoint = "requestPose")]
-    static extern void requestPose();
-
-    delegate void PrintMessageCallback(int level, string msg);
-
-    [DllImport("kinfuunity", EntryPoint = "RegisterPrintMessageCallback")]
-    static extern void RegisterPrintMessageCallback(PrintMessageCallback func, int level);
-    
-    [AOT.MonoPInvokeCallback(typeof(PrintMessageCallback))]
-    static void PrintMessage(int level, string msg)
-    {
-        switch(level)
+        if (Instance != null)
         {
-            case 0:
-            case 1:
-                Debug.LogErrorFormat("Kinfu: {0}", msg);
-                break;
-            case 2:
-                Debug.LogWarningFormat("Kinfu: {0}", msg);
-                break;
-
-            default:
-                Debug.LogFormat("Kinfu: {0}", msg);
-                break;
+            this.enabled = false;
+            return;
         }
+
+        if (KinFuUnity.registerPrintMessageCallback == null)
+        {
+            Debug.LogError("KinFu DLL failed to load");
+            this.enabled = false;
+            return;
+        }
+
+        KinFuUnity.registerPrintMessageCallback(KinFuUnity.PrintMessage, ((int)logLevel));
+
+        Instance = this;
+
+        InitTexture();
+
+        points = new float[1000000 * 3];
+        //Pin points array
+        pointsHandle = GCHandle.Alloc(points, GCHandleType.Pinned);
+        //Get the pinned address
+        pointsPtr = pointsHandle.AddrOfPinnedObject();
+
+        // Pin pose matrix data
+        poseMatrixArray = new float[16];
+        poseMatrixArrayHandle = GCHandle.Alloc(poseMatrixArray, GCHandleType.Pinned);
+        poseMatrixArrayPtr = poseMatrixArrayHandle.AddrOfPinnedObject();
+    }
+
+    void Update()
+    {
+        var devices = KinFuUnity.getConnectedSensorCount();
+
+        if (connectedLabel != null)
+        {
+            connectedLabel.text = string.Format("Connected Devices: {0}", devices);
+        }
+    }
+
+    private void OnApplicationQuit()
+    {
+        CloseCamera();
+        pixelHandle.Free();
+        pointsHandle.Free();
+        poseMatrixArrayHandle.Free();
     }
 
     private void ProcessPoints(int numPoints)
@@ -136,80 +201,20 @@ public class NativePlugin : MonoBehaviour
         }
     }
 
-    [AOT.MonoPInvokeCallback(typeof(PoseDataCallback))]
-    unsafe static void RecievePoseData(float* matrix)
-    {
-        // Copy values into internal buffers, as they will be freed after this method
-        // This is a 4x4 transform for the camera
-        Debug.LogFormat("Recieved pose matrix");
-        Matrix4x4 poseMatrix = new Matrix4x4();
-        for (int row = 0; row < 4; row++)
-        {
-            for (int col = 0; col < 4; col++)
-            {
-                poseMatrix[row, col] = matrix[row * 4 + col];
-            }
-        }
-
-        if(Instance.poseUpdated != null)
-        {
-            Instance.poseUpdated.Invoke(poseMatrix);
-        }
-    }
-
-    private void Awake() {
-
-        if (Instance != null)
-        {
-            this.enabled = false;
-            return;
-        }
-
-        Instance = this;
-
-        RegisterPrintMessageCallback(PrintMessage, ((int)logLevel));
-        unsafe
-        {
-            RegisterPoseDataCallback(RecievePoseData);
-        }
-
-
-        InitTexture();
-
-        points = new float[1000000 * 3];
-        //Pin points array
-        pointsHandle = GCHandle.Alloc(points, GCHandleType.Pinned);
-        //Get the pinned address
-        pointsPtr = pointsHandle.AddrOfPinnedObject();
-    }
-
-    void Update()
-    {
-        var devices = getConnectedSensorCount();
-
-        if (connectedLabel != null)
-        {
-            connectedLabel.text = string.Format("Connected Devices: {0}", devices);
-        }
-    }
-
-    private void OnApplicationQuit()
-    {
-        CloseCamera();
-        pixelHandle.Free();
-    }
-
     public void ToggleAutomaticUpdate()
     {
         if (automaticUpdate == null)
         {
             automaticUpdate = StartCoroutine(AutomatedUpdateLoop());
+            //automaticCloudUpdate = StartCoroutine(AutomatedCloudUpdateLoop());
             automaticUpdateLabel.text = "Stop Auto Updates"; 
         }
         else
         {
             StopCoroutine(automaticUpdate);
             automaticUpdate = null;
+            //StopCoroutine(automaticCloudUpdate);
+            //automaticCloudUpdate = null;
             automaticUpdateLabel.text = "Start Auto Updates";
         }
     }
@@ -220,14 +225,29 @@ public class NativePlugin : MonoBehaviour
         {
             CaptureFrame();
             RequestPose();
-            GetColorImage();
 
             yield return new WaitForSecondsRealtime(1.0f/15.0f);
         }
     }
-    
+
+    IEnumerator AutomatedCloudUpdateLoop()
+    {
+        while (true)
+        {
+            CapturePoints();
+
+            yield return new WaitForSecondsRealtime(1.0f/15.0f);
+        }
+    }
+
     void InitTexture()
     {
+        // NOTE: This is created to MATCH the Kinect buffers - and should either
+        // a) be updated if this changes in the DLL
+        // b) be passed into the DLL somehow to configure
+        // c) be passed OUT of the DLL then created
+        // 
+        // But these are all tasks for later cleanup
         tex = new Texture2D(1920, 1080, TextureFormat.RGBA32, false);
         pixel32 = tex.GetPixels32();
         //Pin pixel32 array
@@ -239,68 +259,73 @@ public class NativePlugin : MonoBehaviour
         colorImage.texture = tex;
     }
 
-    public void GetColorImage()
-    {
-        //Convert Mat to Texture2D
-        getColorImageBytes(pixelPtr, tex.width, tex.height);
-        //Update the Texture2D with array updated in C++
-        tex.SetPixels32(pixel32);
-        tex.Apply();
-    }
-
     public void ConnectAndStartCameras()
     {
-        var success = connectAndStartCameras();
+        var success = KinFuUnity.connectAndStartCameras();
         Debug.LogFormat("connectAndStartCameras: {0}", success);
     }
 
     public void ConnectCamera()
     {
-        var success = connectToDefaultDevice();
+        var success = KinFuUnity.connectToDefaultDevice();
         Debug.LogFormat("connectToDefaultDevice: {0}", success);
     }
 
     public void ConfigCamera()
     {
-        var success = setupConfigAndCalibrate();
+        var success = KinFuUnity.setupConfigAndCalibrate();
         Debug.LogFormat("setupConfigAndCalibrate: {0}", success);
     }
 
     public void StartCamera()
     {
-        var success = startCameras();
+        var success = KinFuUnity.startCameras();
         Debug.LogFormat("startCameras: {0}", success);
     }
 
     public void CaptureFrame()
     {
-        var numPoints = captureFrame(pixelPtr);
-        tex.SetPixels32(pixel32);
-        tex.Apply();
+        var numPoints = KinFuUnity.captureFrame(pixelPtr);
+        //tex.SetPixels32(pixel32);
+        //tex.Apply();
     }
 
-    public void CapturePoints() {
+    public void CapturePoints()
+    {
 
-        var numPoints = capturePointCloud(pointsPtr);
+        var numPoints = KinFuUnity.capturePointCloud(pointsPtr);
 
         ProcessPoints(numPoints);
     }
 
     public void RequestPose()
     {
-        requestPose();
-        Debug.Log("Pose Requested");
+        KinFuUnity.requestPose(poseMatrixArrayPtr);
+
+        Matrix4x4 poseMatrix = new Matrix4x4();
+        for (int row = 0; row < 4; row++)
+        {
+            for (int col = 0; col < 4; col++)
+            {
+                poseMatrix[row, col] = poseMatrixArray[row * 4 + col];
+            }
+        }
+
+        if (Instance.poseUpdated != null)
+        {
+            Instance.poseUpdated.Invoke(poseMatrix);
+        }
     }
 
     public void CloseCamera()
     {
-        closeDevice();
+        KinFuUnity.closeDevice();
         Debug.Log("Device Closed");
     }
 
     public void ResetDevice()
     {
-        resetDevice();
+        KinFuUnity.resetDevice();
         Debug.Log("Device Reset");
     }
 }

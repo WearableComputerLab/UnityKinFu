@@ -137,6 +137,10 @@
       <AdditionalLibraryDirectories>extern\lib\Debug;</AdditionalLibraryDirectories>
       <AdditionalDependencies>%(AdditionalDependencies);opencv_core410d.lib;opencv_calib3d410d.lib;opencv_rgbd410d.lib;opencv_highgui410d.lib;opencv_viz410d.lib;opencv_imgproc410d.lib;</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>if $(ConfigurationName) == Debug copy "$(TargetPath)" "$(SolutionDir)..\kinfu-unity-example\Assets\Plugins\
+if $(ConfigurationName) == Release copy "$(TargetPath)" "$(SolutionDir)..\kinfu-unity-example\Assets\Plugins\</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>

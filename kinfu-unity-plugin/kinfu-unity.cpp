@@ -40,25 +40,16 @@ void KinFuMessageHandler(void *context, k4a_log_level_t level, const char *file,
     PrintMessage(level, message);
 }
 
-void RegisterPrintMessageCallback(PrintMessageCallback callback, int level)
+void registerPrintMessageCallback(PrintMessageCallback callback, int level)
 {
     printMessage = callback;
     k4a_set_debug_message_handler(&KinFuMessageHandler, NULL, (k4a_log_level_t)level);
 }
 
-PoseDataCallback sendPoseData = NULL;
-void RegisterPoseDataCallback(PoseDataCallback callback)
+void requestPose(unsigned char *matrix_data)
 {
-    sendPoseData = callback;
-}
-
-void requestPose()
-{
-    if (sendPoseData == nullptr)
-        return;
-
     auto pose = kf->getPose();
-    sendPoseData(pose.matrix.val);
+    memcpy(matrix_data, pose.matrix.val, sizeof(float) * 16);
 }
 
 int getConnectedSensorCount()
@@ -330,11 +321,11 @@ int captureFrame(unsigned char *color_data)
 
     captureColorImage(capture, color_data);
 
-    int points = updatePointCloud(capture);
+    int ok = updatePointCloud(capture);
 
     k4a_capture_release(capture);
 
-    return points;
+    return ok;
 }
 
 bool stopCameras()
