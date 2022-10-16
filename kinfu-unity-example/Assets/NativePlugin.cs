@@ -224,9 +224,10 @@ public class NativePlugin : MonoBehaviour
         while (true)
         {
             CaptureFrame();
+            CapturePoints();
             RequestPose();
 
-            yield return new WaitForSecondsRealtime(1.0f/15.0f);
+            yield return null;// new WaitForSecondsRealtime(1.0f/15.0f);
         }
     }
 
@@ -262,7 +263,10 @@ public class NativePlugin : MonoBehaviour
     public void ConnectAndStartCameras()
     {
         var success = KinFuUnity.connectAndStartCameras();
-        Debug.LogFormat("connectAndStartCameras: {0}", success);
+        Debug.LogFormat("connectAndStartCameras: {0} ({1})", success == 0, success);
+
+        ToggleAutomaticUpdate();
+
     }
 
     public void ConnectCamera()
@@ -286,13 +290,12 @@ public class NativePlugin : MonoBehaviour
     public void CaptureFrame()
     {
         var numPoints = KinFuUnity.captureFrame(pixelPtr);
-        //tex.SetPixels32(pixel32);
-        //tex.Apply();
+        tex.SetPixels32(pixel32);
+        tex.Apply();
     }
 
     public void CapturePoints()
     {
-
         var numPoints = KinFuUnity.capturePointCloud(pointsPtr);
 
         ProcessPoints(numPoints);
