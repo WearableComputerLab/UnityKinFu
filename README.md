@@ -1,4 +1,12 @@
-# kinfu-unity
+# Kinfu Unity Plugin
+
+This plugin allows the use of the Azure Kinect, and will extract the camera 6DOF pose and point cloud information using the OpenCV KinectFusion libraries.
+
+## Example app
+
+This application under `kinfu-unity-example` is a basic setup to showcase the use of the plugin. Futher documentation for the plugin can be found in the README file under `kinfu-unity-example`.
+
+## References
 
 [Azure Kinect SDK Docs](https://microsoft.github.io/Azure-Kinect-Sensor-SDK/release/1.4.x/index.html)
 
@@ -53,10 +61,11 @@ Open CMake GUI and point the source folder to `{path}/vtk/src` and the build out
 
 ### Building OpenCV
 
-Once VTK has bee built we can move onto compiling OpenCV with the required changes in the config. 
+Once VTK has bee built we can move onto compiling OpenCV with the required changes in the config.
 Open CMake GUI and point the source folder to `{path}/opencv/src/opencv-4.6.0` and the build output to `{path}/opencv/build`. Configure the project.
 
 Once the configure step is completed, set the following settings:
+
 - `OPENCV_ENABLE_NONFREE` checked
 - `OPENCV_EXTRA_MODULES_PATH` `{path}/opencv/src/opencv_contrib-4.6.0/modules`
 - `WITH_VTK` checked
@@ -84,8 +93,42 @@ In the Solution Items open the OpenCV.props file and update the `OPENCV_VERSION`
 
 ### Building Kinfu for Unity
 
-As long as the plugin folder resides with the example app, building the project will also copy the DLL to the Unity Project `Assets/Plugins` folder. 
+As long as the plugin folder resides with the example app, building the project will also copy the DLL to the Unity Project `Assets/Plugins` folder.
 
-It is worth double checking the following DLLs also exist under the `Assets/Plugins` folder, and if not these can be copied from `{path}/opencv/build/bin` in the Debug and Release foldersn
+It is worth double checking the following DLLs also exist under the `Assets/Plugins` folder, and if not these can be copied from `{path}/opencv/build/bin` in the Debug and Release folders.
 
-Note that when building the Unity project for Windows, the DLLs may end up in a `x86_64` folder under `Data/Plugins` and need to be moved into the parent folder.
+To ensure the app will run correctly, you will need the following DLLs under the Plugins folder:
+
+KinFu Unity plugin: `kinfuunity.dll`
+
+These are from the Kinect SDK
+
+- `depthengine_2_0.dll`
+- `k4a.dll`
+- `k4arecord.dll`
+
+These are from the version of OpenCV built in both Debug (`[version]d.dll`) and Release varieties
+
+Release
+
+- `opencv_calib3d460.dll`
+- `opencv_core460.dll`
+- `opencv_features2d460.dll`
+- `opencv_flann460.dll`
+- `opencv_highgui460.dll`
+- `opencv_imgcodecs460.dll`
+- `opencv_imgproc460.dll`
+- `opencv_rgbd460.dll`
+- `opencv_videoio460.dll`
+
+Debug
+
+- `opencv_calib3d460d.dll`
+- `opencv_core460d.dll`
+- `opencv_features2d460d.dll`
+- `opencv_flann460d.dll`
+- `opencv_highgui460d.dll`
+- `opencv_imgcodecs460d.dll`
+- `opencv_imgproc460d.dll`
+- `opencv_rgbd460d.dll`
+- `opencv_videoio460d.dll`
