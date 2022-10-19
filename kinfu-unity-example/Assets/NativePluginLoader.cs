@@ -103,6 +103,10 @@ namespace fts
             DontDestroyOnLoad(this.gameObject);
             _path = Application.dataPath + "/Plugins/";
 
+            if (!Application.isEditor) {
+                _path += "x86_64/";
+            }
+
             LoadAll();
         }
 

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.VFX;
 using System.IO;
-using UnityEditor;
 
 [RequireComponent(typeof(VisualEffect))]
 public class PointCloudRenderer : MonoBehaviour
@@ -23,7 +22,7 @@ public class PointCloudRenderer : MonoBehaviour
     public Vector3 boundsCentre;
 
     // Assign an object in the editor (*.ply, etc.)
-    public Object pointCloudObject;
+    public TextAsset pointCloudObject;
 
     //List for dynamic assignment
     List<Vector3> pointVertices= new List<Vector3>();
@@ -49,16 +48,17 @@ public class PointCloudRenderer : MonoBehaviour
     /// Reads the file and splits it up returning an array of strings
     /// which should represent points in the point cloud
     string[] ReadFile() {
-        // Object passed to streamreader which grabs the file path from the object itself
-        StreamReader streamReader = new StreamReader(AssetDatabase.GetAssetPath(pointCloudObject));
-        string pointFile = streamReader.ReadToEnd();
-        // Split into array to seperate header and point data
-        string[] headerRemoved = pointFile.Split("end_header");
-        // Stringify the first element which contains point and normal data
-        string dataString = headerRemoved[1];
-        streamReader.Close();
-        // Split on newlines and return
-        return dataString.Split("\n");
+        return new List<string>().ToArray();
+        //// Object passed to streamreader which grabs the file path from the object itself
+        //StreamReader streamReader = new StreamReader(AssetDatabase.GetAssetPath(pointCloudObject));
+        //string pointFile = streamReader.ReadToEnd();
+        //// Split into array to seperate header and point data
+        //string[] headerRemoved = pointFile.Split("end_header");
+        //// Stringify the first element which contains point and normal data
+        //string dataString = headerRemoved[1];
+        //streamReader.Close();
+        //// Split on newlines and return
+        //return dataString.Split("\n");
     }
 
     /// Takes an array of strings that should represent points in the cloud
