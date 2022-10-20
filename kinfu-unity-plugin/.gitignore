@@ -3,11 +3,6 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
-# Include everything under extern as this is required for now.
-# We could get someone to download it but this is easier
-!extern/lib/[Dd]ebug/*
-!extern/lib/[Rr]elease/*
-
 # User-specific files
 *.rsuser
 *.suo
@@ -22,10 +17,10 @@
 mono_crash.*
 
 # Build results
-[Dd]ebug/
-[Dd]ebugPublic/
-[Rr]elease/
-[Rr]eleases/
+[Dd]ebug/*
+[Dd]ebugPublic/*
+[Rr]elease/*
+[Rr]eleases/*
 x64/
 x86/
 [Ww][Ii][Nn]32/
