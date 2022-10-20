@@ -9,20 +9,20 @@
 
 #include <sstream>
 
+const int32_t TIMEOUT_IN_MS = 1000;
+
 // The currently connected device
 k4a_device_t device = NULL;
 
 // Configure the depth mode and fps
 k4a_device_configuration_t config = K4A_DEVICE_CONFIG_INIT_DISABLE_ALL;
-
 k4a_calibration_t calibration;
-
 k4a_image_t lut = NULL;
-
-Ptr<kinfu::KinFu> kf;
 
 pinhole_t pinhole;
 interpolation_t interpolation_type = INTERPOLATION_BILINEAR_DEPTH;
+
+Ptr<kinfu::KinFu> kf;
 
 PrintMessageCallback printMessage = NULL;
 void PrintMessage(int level, const char *msg)
@@ -93,7 +93,7 @@ bool setupConfigAndCalibrate()
     config.color_format = K4A_IMAGE_FORMAT_COLOR_BGRA32;
     config.color_resolution = K4A_COLOR_RESOLUTION_1080P;
     config.depth_mode = K4A_DEPTH_MODE_NFOV_UNBINNED;
-    config.camera_fps = K4A_FRAMES_PER_SECOND_30;
+    config.camera_fps = K4A_FRAMES_PER_SECOND_5;
 
     // Retrive calibration
     if (K4A_RESULT_SUCCEEDED !=
@@ -158,16 +158,13 @@ bool startCameras()
     return true;
 }
 
-const int32_t TIMEOUT_IN_MS = 1000;
-
 void captureColorImage(k4a_capture_t capture, unsigned char *data)
 {
-
     // Retrieve color image
     k4a_image_t color_image = k4a_capture_get_color_image(capture);
     if (color_image == NULL)
     {
-        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "color None\n");
+        PrintMessage(K4A_LOG_LEVEL_WARNING, "No color image fetched\n");
         return;
     }
 
@@ -178,10 +175,6 @@ void captureColorImage(k4a_capture_t capture, unsigned char *data)
     // image comes in upside down for our case
     // So we read it backwards and add into a new buffer
     size_t size = k4a_image_get_size(color_image);
-    // auto stride = k4a_image_get_stride_bytes(color_image);
-    // std::stringstream msg;
-    // msg << "size: " << size << " stride: " << stride;
-    // PrintMessage(K4A_LOG_LEVEL_INFO, msg.str().c_str());
 
     // This should be smarter (i.e stride / width to get bytes per pixel)
     // But I want something now and I know it's 4 bytes
@@ -227,7 +220,7 @@ int capturePointCloud(unsigned char *point_data)
 
     if (size > maxPoints)
     {
-        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Size exceeds points!!");
+        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Size exceeds max points!!");
         return -size;
     }
 
@@ -247,7 +240,7 @@ int capturePointCloud(unsigned char *point_data)
     return size;
 }
 
-int updatePointCloud(k4a_capture_t capture)
+bool updateKinectFusion(k4a_capture_t capture)
 {
     k4a_image_t depth_image = NULL;
     k4a_image_t undistorted_depth_image = NULL;
@@ -260,7 +253,7 @@ int updatePointCloud(k4a_capture_t capture)
     if (depth_image == NULL)
     {
         PrintMessage(K4A_LOG_LEVEL_CRITICAL, "k4a_capture_get_depth_image returned NULL\n");
-        return 0;
+        return false;
     }
 
     k4a_image_create(K4A_IMAGE_FORMAT_DEPTH16,
@@ -268,6 +261,7 @@ int updatePointCloud(k4a_capture_t capture)
                      pinhole.height,
                      pinhole.width * (int)sizeof(uint16_t),
                      &undistorted_depth_image);
+
     remap(depth_image, lut, undistorted_depth_image, interpolation_type);
 
     // Create frame from depth buffer
@@ -281,7 +275,7 @@ int updatePointCloud(k4a_capture_t capture)
         PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Undistorted frame is empty\n");
         k4a_image_release(depth_image);
         k4a_image_release(undistorted_depth_image);
-        return 0;
+        return false;
     }
 
     // Update KinectFusion
@@ -291,41 +285,40 @@ int updatePointCloud(k4a_capture_t capture)
         //        kf->reset();
         k4a_image_release(depth_image);
         k4a_image_release(undistorted_depth_image);
-        return 0;
+        return false;
     }
 
     k4a_image_release(depth_image);
     k4a_image_release(undistorted_depth_image);
 
-    return 1;
+    return true;
 }
 
 int captureFrame(unsigned char *color_data)
 {
     k4a_capture_t capture = NULL;
 
-    // Get a depth frame
     switch (k4a_device_get_capture(device, &capture, TIMEOUT_IN_MS))
     {
     case K4A_WAIT_RESULT_SUCCEEDED:
         break;
     case K4A_WAIT_RESULT_TIMEOUT:
         PrintMessage(K4A_LOG_LEVEL_INFO, "Timed out waiting for a capture\n");
-        return true;
+        return -1;
 
     case K4A_WAIT_RESULT_FAILED:
         PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Failed to read a capture\n");
         closeDevice();
-        return 0;
+        return -2;
     }
 
     captureColorImage(capture, color_data);
 
-    int ok = updatePointCloud(capture);
+    bool ok = updateKinectFusion(capture);
 
     k4a_capture_release(capture);
 
-    return ok;
+    return ok ? 1 : 0;
 }
 
 bool stopCameras()
@@ -347,70 +340,4 @@ void closeDevice()
 
     k4a_device_close(device);
     device = nullptr;
-}
-
-void getColorImageBytes(unsigned char *data, int width, int height)
-{
-
-    k4a_capture_t capture = NULL;
-    k4a_image_t color_image = NULL;
-
-    // Get a color frame
-    switch (k4a_device_get_capture(device, &capture, TIMEOUT_IN_MS))
-    {
-    case K4A_WAIT_RESULT_SUCCEEDED:
-        break;
-    case K4A_WAIT_RESULT_TIMEOUT:
-        PrintMessage(K4A_LOG_LEVEL_INFO, "Timed out waiting for a capture\n");
-        return;
-
-    case K4A_WAIT_RESULT_FAILED:
-        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Failed to read a capture\n");
-        closeDevice();
-        return;
-    }
-
-    // Retrieve color image
-    color_image = k4a_capture_get_color_image(capture);
-    if (color_image == NULL)
-    {
-        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "color None\n");
-        k4a_capture_release(capture);
-        return;
-    }
-
-    // Create frame from color buffer
-    uint8_t *buffer = k4a_image_get_buffer(color_image);
-
-    //
-    // image comes in upside down for our case
-    // So we read it backwards and add into a new buffer
-    size_t size = k4a_image_get_size(color_image);
-    // auto stride = k4a_image_get_stride_bytes(color_image);
-    // std::stringstream msg;
-    // msg << "size: " << size << " stride: " << stride;
-    // PrintMessage(K4A_LOG_LEVEL_INFO, msg.str().c_str());
-
-    // This should be smarter (i.e stride / width to get bytes per pixel)
-    // But I want something now and I know it's 4 bytes
-    uint8_t *flipped = new uint8_t[size];
-    std::memset(flipped, 0x0, size);
-
-    for (int i = 0; i < size - 4; i += 4)
-    {
-        // Blue Channel
-        flipped[i + 2] = buffer[i + 0];
-        // Green
-        flipped[i + 1] = buffer[i + 1];
-        // Red (because the image is in BGRA not RGBA)
-        flipped[i + 0] = buffer[i + 2];
-        // Alpha
-        flipped[i + 3] = buffer[i + 3];
-    }
-
-    std::memcpy(data, flipped, size);
-
-    delete[] flipped;
-    k4a_image_release(color_image);
-    k4a_capture_release(capture);
 }
