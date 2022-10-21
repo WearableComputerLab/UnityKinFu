@@ -24,9 +24,9 @@ interpolation_t interpolation_type = INTERPOLATION_BILINEAR_DEPTH;
 
 Ptr<kinfu::KinFu> kf;
 
-const int maxPoints = 1000000 * 3;
-auto out_points = new float[maxPoints];
-auto out_normals = new float[maxPoints];
+const int maxPoints = 1000000;
+auto out_points = new float[maxPoints * 3];
+auto out_normals = new float[maxPoints * 3];
 
 ///
 ///
@@ -150,12 +150,14 @@ int capturePointCloud(unsigned char *point_data)
     kf->getCloud(points, normals);
 
     int size = points.rows;
-    memset(out_points, 0x0, maxPoints);
+    memset(point_data, 0x0, maxPoints);
     memset(out_normals, 0x0, maxPoints);
 
     if (size > maxPoints)
     {
-        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Size exceeds max points!!");
+        std::stringstream error;
+        error << "Cloud Size exceeds max points!! " << size << " vs " << maxPoints << std::endl;
+        PrintMessage(K4A_LOG_LEVEL_CRITICAL, error.str().c_str());
         return -size;
     }
 
@@ -165,12 +167,12 @@ int capturePointCloud(unsigned char *point_data)
         out_points[i * 3 + 1] = points.at<float>(i, 1);
         out_points[i * 3 + 2] = points.at<float>(i, 2);
 
-        out_normals[i * 3 + 0] = normals.at<float>(i, 0);
-        out_normals[i * 3 + 1] = normals.at<float>(i, 1);
-        out_normals[i * 3 + 2] = normals.at<float>(i, 2);
+        //out_normals[i * 3 + 0] = normals.at<float>(i, 0);
+        //out_normals[i * 3 + 1] = normals.at<float>(i, 1);
+        //out_normals[i * 3 + 2] = normals.at<float>(i, 2);
     }
 
-    std::memcpy(point_data, out_points, sizeof(float) * size);
+    memcpy(point_data, out_points, sizeof(float) * size);
 
     return size;
 }
