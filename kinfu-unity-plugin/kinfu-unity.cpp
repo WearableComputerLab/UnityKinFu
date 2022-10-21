@@ -151,6 +151,7 @@ int capturePointCloud(unsigned char *point_data)
 
     int size = points.rows;
     memset(out_points, 0x0, maxPoints);
+    memset(out_normals, 0x0, maxPoints);
 
     if (size > maxPoints)
     {
@@ -237,8 +238,8 @@ bool updateKinectFusion(k4a_capture_t capture)
 }
 
 /// <summary>
-/// Combine Colour image capture, frame update, and pose fetch
-/// in a single call
+/// Combine Colour image capture, frame update, point cloud capture,
+/// and pose fetchin a single call
 /// </summary>
 /// <returns>Status of the update
 /// 1: Update successful
@@ -279,6 +280,72 @@ int captureFrame(
     k4a_capture_release(capture);
 
     return numPoints;
+}
+
+/// <summary>
+/// Capture color image from Kinect
+/// </summary>
+/// <returns>Status of the update
+/// 1: Capture successful
+/// 0: Capture unsuccessful, can still process
+/// -2: Fatal issue and close device
+/// </returns>
+int captureColorImage(unsigned char *color_data)
+{
+    k4a_capture_t capture = NULL;
+
+    switch (k4a_device_get_capture(device, &capture, TIMEOUT_IN_MS))
+    {
+    case K4A_WAIT_RESULT_SUCCEEDED:
+        break;
+    case K4A_WAIT_RESULT_TIMEOUT:
+        PrintMessage(K4A_LOG_LEVEL_INFO, "Timed out waiting for a capture\n");
+        return 0;
+
+    case K4A_WAIT_RESULT_FAILED:
+        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Failed to read a capture\n");
+        closeDevice();
+        return -2;
+    }
+
+    bool colorOk = captureColorImage(capture, color_data);
+
+    k4a_capture_release(capture);
+
+    return colorOk ? 1 : 0;
+}
+
+/// <summary>
+/// Update the KinectFusion frame
+/// </summary>
+/// <returns>Status of the update
+/// 1: Update successful
+/// 0: Update unsuccessful, can still process
+/// -2: Fatal issue and close device
+/// </returns>
+int updateKinectFusion()
+{
+
+    k4a_capture_t capture = NULL;
+
+    switch (k4a_device_get_capture(device, &capture, TIMEOUT_IN_MS))
+    {
+    case K4A_WAIT_RESULT_SUCCEEDED:
+        break;
+    case K4A_WAIT_RESULT_TIMEOUT:
+        PrintMessage(K4A_LOG_LEVEL_INFO, "Timed out waiting for a capture\n");
+        return 0;
+
+    case K4A_WAIT_RESULT_FAILED:
+        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Failed to read a capture\n");
+        closeDevice();
+        return -2;
+    }
+
+    bool updateOk = updateKinectFusion(capture);
+
+    k4a_capture_release(capture);
+    return updateOk ? 1 : 0;
 }
 
 ///

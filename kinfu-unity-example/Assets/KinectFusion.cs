@@ -88,21 +88,6 @@ public class KinectFusion : MonoBehaviour
 
                 Instance.updateImage = updateSuccess > 0;
                 Instance.numPoints = updateSuccess;
-
-                // var updateSuccess = KinFuUnity.captureFrame(Instance.pixelPtr);
-
-                // // This is a fatal status and we need to close the device
-                // // K4A_WAIT_RESULT_FAILED
-                // if (updateSuccess == -2)
-                // {
-                //     Instance.CloseCamera();
-                //     break;
-                // }
-
-                // Instance.updateImage = updateSuccess == 1;
-
-                // Instance.numPoints = KinFuUnity.capturePointCloud(Instance.pointsPtr);
-                // KinFuUnity.requestPose(Instance.poseMatrixArrayPtr);
             }
 
             Thread.Sleep(Instance.SleepTime);

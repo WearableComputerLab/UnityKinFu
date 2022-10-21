@@ -37,10 +37,6 @@ public static class KinFuUnity
     public static CaptureFrame captureFrame = null;
     public delegate int CaptureFrame(IntPtr color_data, IntPtr point_data, IntPtr pose_matrix_data);
 
-    [PluginFunctionAttr("capturePointCloud")]
-    public static CapturePointCloud capturePointCloud = null;
-    public delegate int CapturePointCloud(IntPtr point_data);
-
     [PluginFunctionAttr("closeDevice")]
     public static CloseDevice closeDevice = null;
     public delegate void CloseDevice();
@@ -48,6 +44,18 @@ public static class KinFuUnity
     [PluginFunctionAttr("reset")]
     public static ResetDevice resetDevice = null;
     public delegate void ResetDevice();
+
+    [PluginFunctionAttr("captureColorImage")]
+    public static CaptureColorImage captureColorImage = null;
+    public delegate int CaptureColorImage(IntPtr color_data);
+
+    [PluginFunctionAttr("capturePointCloud")]
+    public static CapturePointCloud capturePointCloud = null;
+    public delegate int CapturePointCloud(IntPtr point_data);
+
+    [PluginFunctionAttr("updateKinectFusion")]
+    public static UpdateKinectFusion updateKinectFusion = null;
+    public delegate int UpdateKinectFusion();
 
     [PluginFunctionAttr("requestPose")]
     public static RequestPose requestPose = null;

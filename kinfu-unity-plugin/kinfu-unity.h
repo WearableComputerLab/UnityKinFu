@@ -12,24 +12,70 @@
 
 extern "C"
 {
-
+	// Register callback to print messages on the Unity side
 	typedef void (*PrintMessageCallback)(int level, const char *);
 	KINFUUNITY_API void registerPrintMessageCallback(PrintMessageCallback callback, int level);
 
-	KINFUUNITY_API int getConnectedSensorCount();
-	KINFUUNITY_API bool connectToDevice(int deviceIndex);
-	KINFUUNITY_API bool connectToDefaultDevice();
-	KINFUUNITY_API bool setupConfigAndCalibrate();
-	KINFUUNITY_API bool startCameras();
+	// Connect to the Default device, configure, and start the cameras
 	KINFUUNITY_API int connectAndStartCameras();
-	KINFUUNITY_API bool stopCameras();
-	KINFUUNITY_API void closeDevice();
-	KINFUUNITY_API void reset();
 
+	/// <summary>
+	/// Combine Colour image capture, frame update, point cloud capture,
+	/// and pose fetchin a single call
+	/// </summary>
+	/// <returns>Status of the update
+	/// 1: Update successful
+	/// 0: Update unsuccessful, can still process
+	/// -2: Fatal issue and close device
+	/// </returns>
 	KINFUUNITY_API int captureFrame(
 		unsigned char *color_data,
 		unsigned char *point_data,
 		unsigned char *matrix_data);
+
+	// Captures the color image from the device
+	KINFUUNITY_API int captureColorImage(unsigned char *color_data);
+
+	// Updates the KinectFusion object with the latest undistorted frame
+	KINFUUNITY_API int updateKinectFusion();
+
+	// Captures the point cloud data from the latest frame
+	// (assuming updateKinectFusion has been called first)
 	KINFUUNITY_API int capturePointCloud(unsigned char *point_data);
+
+	// Captures the camera pose matrix from the  latest frame
+	// (assuming captureFrame has been called first)
 	KINFUUNITY_API void requestPose(unsigned char *matrix_data);
+
+	///
+	/// Below are the raw calls to the Kinect k4a functions
+	/// and can be called individually if required.
+	///
+	/// They have been ordered in the order you would call them
+	///
+
+	// Returns the number of connected devices
+	KINFUUNITY_API int getConnectedSensorCount();
+
+	// Connect to the first device (device 0)
+	KINFUUNITY_API bool connectToDefaultDevice();
+
+	// Connect to a specific device
+	KINFUUNITY_API bool connectToDevice(int deviceIndex);
+
+	// setup and configure device
+	KINFUUNITY_API bool setupConfigAndCalibrate();
+
+	// start connected device cameras
+	KINFUUNITY_API bool startCameras();
+
+	// Resets the KinectFusion algorithm
+	// Clears current model and resets a pose.
+	KINFUUNITY_API void reset();
+
+	// stop connected device cameras
+	KINFUUNITY_API bool stopCameras();
+
+	// close device and release device handle
+	KINFUUNITY_API void closeDevice();
 }
