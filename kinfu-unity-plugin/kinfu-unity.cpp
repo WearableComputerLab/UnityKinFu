@@ -24,6 +24,13 @@ interpolation_t interpolation_type = INTERPOLATION_BILINEAR_DEPTH;
 
 Ptr<kinfu::KinFu> kf;
 
+const int maxPoints = 1000000 * 3;
+auto out_points = new float[maxPoints];
+auto out_normals = new float[maxPoints];
+
+///
+///
+
 PrintMessageCallback printMessage = NULL;
 void PrintMessage(int level, const char *msg)
 {
@@ -46,16 +53,18 @@ void registerPrintMessageCallback(PrintMessageCallback callback, int level)
     k4a_set_debug_message_handler(&KinFuMessageHandler, NULL, (k4a_log_level_t)level);
 }
 
-void requestPose(unsigned char *matrix_data)
-{
-    auto pose = kf->getPose();
-    memcpy(matrix_data, pose.matrix.val, sizeof(float) * 16);
-}
+///
+///
 
-int getConnectedSensorCount()
-{
-    return k4a_device_get_installed_count();
-}
+/// <summary>
+/// Capture color image from Kinect
+/// </summary>
+/// <returns>Status of the update
+/// 0: Connected and started OK
+/// -1: Failed to connect to Default device
+/// -2: Failed to setup and calibrate
+/// -3: Failed to start the device cameras
+/// </returns>
 
 int connectAndStartCameras()
 {
@@ -69,6 +78,226 @@ int connectAndStartCameras()
     return 0;
 }
 
+/// <summary>
+/// Capture camera 6DOF matrix from last capture frame
+/// </summary>
+void requestPose(unsigned char *matrix_data)
+{
+    auto pose = kf->getPose();
+    memcpy(matrix_data, pose.matrix.val, sizeof(float) * 16);
+}
+
+/// <summary>
+/// Capture color image from Kinect
+/// </summary>
+/// <returns>Status of the update
+/// true: Capture successful
+/// false: Capture unsuccessful, can still process
+/// </returns>
+bool captureColorImage(k4a_capture_t capture, unsigned char *data)
+{
+    // Retrieve color image
+    k4a_image_t color_image = k4a_capture_get_color_image(capture);
+    if (color_image == NULL)
+    {
+        PrintMessage(K4A_LOG_LEVEL_WARNING, "No color image fetched\n");
+        return false;
+    }
+
+    // Create frame from color buffer
+    uint8_t *buffer = k4a_image_get_buffer(color_image);
+
+    //
+    // image comes in upside down for our case
+    // So we read it backwards and add into a new buffer
+    size_t size = k4a_image_get_size(color_image);
+
+    // This should be smarter (i.e stride / width to get bytes per pixel)
+    // But I want something now and I know it's 4 bytes
+    uint8_t *flipped = new uint8_t[size];
+    std::memset(flipped, 0x0, size);
+
+    for (int i = 0; i < size - 4; i += 4)
+    {
+        // Blue Channel
+        flipped[i + 2] = buffer[i + 0];
+        // Green
+        flipped[i + 1] = buffer[i + 1];
+        // Red (because the image is in BGRA not RGBA)
+        flipped[i + 0] = buffer[i + 2];
+        // Alpha
+        flipped[i + 3] = buffer[i + 3];
+    }
+
+    std::memcpy(data, flipped, size);
+
+    delete[] flipped;
+    k4a_image_release(color_image);
+
+    return true;
+}
+
+/// <summary>
+/// Capture the point cloud from the last Kinect Fusion frame
+/// Will only store up to a max of 1,000,000 3D points
+/// </summary>
+/// <param name="point_data">Pointer to memory to store the data</param>
+/// <returns>Size of the points rendered</returns>
+int capturePointCloud(unsigned char *point_data)
+{
+    // get cloud
+    Mat points, normals;
+    kf->getCloud(points, normals);
+
+    int size = points.rows;
+    memset(out_points, 0x0, maxPoints);
+
+    if (size > maxPoints)
+    {
+        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Size exceeds max points!!");
+        return -size;
+    }
+
+    for (int i = 0; i < size; i++)
+    {
+        out_points[i * 3 + 0] = points.at<float>(i, 0);
+        out_points[i * 3 + 1] = points.at<float>(i, 1);
+        out_points[i * 3 + 2] = points.at<float>(i, 2);
+
+        out_normals[i * 3 + 0] = normals.at<float>(i, 0);
+        out_normals[i * 3 + 1] = normals.at<float>(i, 1);
+        out_normals[i * 3 + 2] = normals.at<float>(i, 2);
+    }
+
+    std::memcpy(point_data, out_points, sizeof(float) * size);
+
+    return size;
+}
+
+/// <summary>
+/// Update the KinectFusion frame
+/// </summary>
+/// <returns>Status of the update
+/// 1: Update successful
+/// 0: Update unsuccessful, can still process
+/// -2: Fatal issue and close device
+/// </returns>
+bool updateKinectFusion(k4a_capture_t capture)
+{
+    k4a_image_t depth_image = NULL;
+    k4a_image_t undistorted_depth_image = NULL;
+
+    const int width = calibration.depth_camera_calibration.resolution_width;
+    const int height = calibration.depth_camera_calibration.resolution_height;
+
+    // Retrieve depth image
+    depth_image = k4a_capture_get_depth_image(capture);
+    if (depth_image == NULL)
+    {
+        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "k4a_capture_get_depth_image returned NULL\n");
+        return false;
+    }
+
+    k4a_image_create(K4A_IMAGE_FORMAT_DEPTH16,
+                     pinhole.width,
+                     pinhole.height,
+                     pinhole.width * (int)sizeof(uint16_t),
+                     &undistorted_depth_image);
+
+    remap(depth_image, lut, undistorted_depth_image, interpolation_type);
+
+    // Create frame from depth buffer
+    uint8_t *buffer = k4a_image_get_buffer(undistorted_depth_image);
+    uint16_t *depth_buffer = reinterpret_cast<uint16_t *>(buffer);
+    UMat undistortedFrame;
+    create_mat_from_buffer(depth_buffer, width, height, 1).copyTo(undistortedFrame);
+
+    if (undistortedFrame.empty())
+    {
+        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Undistorted frame is empty\n");
+        k4a_image_release(depth_image);
+        k4a_image_release(undistorted_depth_image);
+        return false;
+    }
+
+    // Update KinectFusion
+    if (!kf->update(undistortedFrame))
+    {
+        PrintMessage(K4A_LOG_LEVEL_INFO, "Did not update from frame\n");
+        //        kf->reset();
+        k4a_image_release(depth_image);
+        k4a_image_release(undistorted_depth_image);
+        return false;
+    }
+
+    k4a_image_release(depth_image);
+    k4a_image_release(undistorted_depth_image);
+
+    return true;
+}
+
+/// <summary>
+/// Combine Colour image capture, frame update, and pose fetch
+/// in a single call
+/// </summary>
+/// <returns>Status of the update
+/// 1: Update successful
+/// 0: Update unsuccessful, can still process
+/// -2: Fatal issue and close device
+/// </returns>
+int captureFrame(
+    unsigned char *color_data,
+    unsigned char *point_data,
+    unsigned char *matrix_data)
+{
+    k4a_capture_t capture = NULL;
+
+    switch (k4a_device_get_capture(device, &capture, TIMEOUT_IN_MS))
+    {
+    case K4A_WAIT_RESULT_SUCCEEDED:
+        break;
+    case K4A_WAIT_RESULT_TIMEOUT:
+        PrintMessage(K4A_LOG_LEVEL_INFO, "Timed out waiting for a capture\n");
+        return 0;
+
+    case K4A_WAIT_RESULT_FAILED:
+        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Failed to read a capture\n");
+        closeDevice();
+        return -2;
+    }
+
+    bool colorOk = captureColorImage(capture, color_data);
+    bool updateOk = updateKinectFusion(capture);
+    int numPoints = 0;
+
+    if (updateOk)
+    {
+        requestPose(matrix_data);
+        numPoints = capturePointCloud(point_data);
+    }
+
+    k4a_capture_release(capture);
+
+    return numPoints;
+}
+
+///
+/// Below are the raw calls to the Kinect k4a functions
+/// and can be called individually if required.
+///
+/// They have been ordered in the order you would call them
+///
+
+int getConnectedSensorCount()
+{
+    return k4a_device_get_installed_count();
+}
+
+inline bool connectToDefaultDevice()
+{
+    return connectToDevice(K4A_DEVICE_DEFAULT);
+}
+
 bool connectToDevice(int deviceIndex)
 {
 
@@ -80,11 +309,6 @@ bool connectToDevice(int deviceIndex)
     }
 
     return true;
-}
-
-inline bool connectToDefaultDevice()
-{
-    return connectToDevice(K4A_DEVICE_DEFAULT);
 }
 
 bool setupConfigAndCalibrate()
@@ -158,167 +382,10 @@ bool startCameras()
     return true;
 }
 
-void captureColorImage(k4a_capture_t capture, unsigned char *data)
-{
-    // Retrieve color image
-    k4a_image_t color_image = k4a_capture_get_color_image(capture);
-    if (color_image == NULL)
-    {
-        PrintMessage(K4A_LOG_LEVEL_WARNING, "No color image fetched\n");
-        return;
-    }
-
-    // Create frame from color buffer
-    uint8_t *buffer = k4a_image_get_buffer(color_image);
-
-    //
-    // image comes in upside down for our case
-    // So we read it backwards and add into a new buffer
-    size_t size = k4a_image_get_size(color_image);
-
-    // This should be smarter (i.e stride / width to get bytes per pixel)
-    // But I want something now and I know it's 4 bytes
-    uint8_t *flipped = new uint8_t[size];
-    std::memset(flipped, 0x0, size);
-
-    for (int i = 0; i < size - 4; i += 4)
-    {
-        // Blue Channel
-        flipped[i + 2] = buffer[i + 0];
-        // Green
-        flipped[i + 1] = buffer[i + 1];
-        // Red (because the image is in BGRA not RGBA)
-        flipped[i + 0] = buffer[i + 2];
-        // Alpha
-        flipped[i + 3] = buffer[i + 3];
-    }
-
-    std::memcpy(data, flipped, size);
-
-    delete[] flipped;
-    k4a_image_release(color_image);
-}
-
-const int maxPoints = 1000000 * 3;
-auto out_points = new float[maxPoints];
-auto out_normals = new float[maxPoints];
-
 void reset()
 {
     if (kf != NULL)
         kf->reset();
-}
-
-int capturePointCloud(unsigned char *point_data)
-{
-    // get cloud
-    Mat points, normals;
-    kf->getCloud(points, normals);
-
-    int size = points.rows;
-    memset(out_points, 0x0, maxPoints);
-
-    if (size > maxPoints)
-    {
-        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Size exceeds max points!!");
-        return -size;
-    }
-
-    for (int i = 0; i < size; i++)
-    {
-        out_points[i * 3 + 0] = points.at<float>(i, 0);
-        out_points[i * 3 + 1] = points.at<float>(i, 1);
-        out_points[i * 3 + 2] = points.at<float>(i, 2);
-
-        out_normals[i * 3 + 0] = normals.at<float>(i, 0);
-        out_normals[i * 3 + 1] = normals.at<float>(i, 1);
-        out_normals[i * 3 + 2] = normals.at<float>(i, 2);
-    }
-
-    std::memcpy(point_data, out_points, sizeof(float) * size);
-
-    return size;
-}
-
-bool updateKinectFusion(k4a_capture_t capture)
-{
-    k4a_image_t depth_image = NULL;
-    k4a_image_t undistorted_depth_image = NULL;
-
-    const int width = calibration.depth_camera_calibration.resolution_width;
-    const int height = calibration.depth_camera_calibration.resolution_height;
-
-    // Retrieve depth image
-    depth_image = k4a_capture_get_depth_image(capture);
-    if (depth_image == NULL)
-    {
-        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "k4a_capture_get_depth_image returned NULL\n");
-        return false;
-    }
-
-    k4a_image_create(K4A_IMAGE_FORMAT_DEPTH16,
-                     pinhole.width,
-                     pinhole.height,
-                     pinhole.width * (int)sizeof(uint16_t),
-                     &undistorted_depth_image);
-
-    remap(depth_image, lut, undistorted_depth_image, interpolation_type);
-
-    // Create frame from depth buffer
-    uint8_t *buffer = k4a_image_get_buffer(undistorted_depth_image);
-    uint16_t *depth_buffer = reinterpret_cast<uint16_t *>(buffer);
-    UMat undistortedFrame;
-    create_mat_from_buffer(depth_buffer, width, height, 1).copyTo(undistortedFrame);
-
-    if (undistortedFrame.empty())
-    {
-        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Undistorted frame is empty\n");
-        k4a_image_release(depth_image);
-        k4a_image_release(undistorted_depth_image);
-        return false;
-    }
-
-    // Update KinectFusion
-    if (!kf->update(undistortedFrame))
-    {
-        PrintMessage(K4A_LOG_LEVEL_INFO, "Did not update from frame\n");
-        //        kf->reset();
-        k4a_image_release(depth_image);
-        k4a_image_release(undistorted_depth_image);
-        return false;
-    }
-
-    k4a_image_release(depth_image);
-    k4a_image_release(undistorted_depth_image);
-
-    return true;
-}
-
-int captureFrame(unsigned char *color_data)
-{
-    k4a_capture_t capture = NULL;
-
-    switch (k4a_device_get_capture(device, &capture, TIMEOUT_IN_MS))
-    {
-    case K4A_WAIT_RESULT_SUCCEEDED:
-        break;
-    case K4A_WAIT_RESULT_TIMEOUT:
-        PrintMessage(K4A_LOG_LEVEL_INFO, "Timed out waiting for a capture\n");
-        return -1;
-
-    case K4A_WAIT_RESULT_FAILED:
-        PrintMessage(K4A_LOG_LEVEL_CRITICAL, "Failed to read a capture\n");
-        closeDevice();
-        return -2;
-    }
-
-    captureColorImage(capture, color_data);
-
-    bool ok = updateKinectFusion(capture);
-
-    k4a_capture_release(capture);
-
-    return ok ? 1 : 0;
 }
 
 bool stopCameras()

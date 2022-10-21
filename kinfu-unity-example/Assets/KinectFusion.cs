@@ -72,24 +72,11 @@ public class KinectFusion : MonoBehaviour
         {
             lock (threadLock)
             {
-                // var updateSuccess = KinFuUnity.captureFrame(
-                //     Instance.pixelPtr,
-                //     Instance.pointsPtr,
-                //     Instance.poseMatrixArrayPtr
-                // );
-
-                // // This is a fatal status and we need to close the device
-                // // K4A_WAIT_RESULT_FAILED
-                // if (updateSuccess == -2)
-                // {
-                //     Instance.CloseCamera();
-                //     break;
-                // }
-
-                // Instance.updateImage = updateSuccess > 0;
-                // Instance.numPoints = updateSuccess;
-
-                var updateSuccess = KinFuUnity.captureFrame(Instance.pixelPtr);
+                var updateSuccess = KinFuUnity.captureFrame(
+                    Instance.pixelPtr,
+                    Instance.pointsPtr,
+                    Instance.poseMatrixArrayPtr
+                );
 
                 // This is a fatal status and we need to close the device
                 // K4A_WAIT_RESULT_FAILED
@@ -99,10 +86,23 @@ public class KinectFusion : MonoBehaviour
                     break;
                 }
 
-                Instance.updateImage = updateSuccess == 1;
+                Instance.updateImage = updateSuccess > 0;
+                Instance.numPoints = updateSuccess;
 
-                Instance.numPoints = KinFuUnity.capturePointCloud(Instance.pointsPtr);
-                KinFuUnity.requestPose(Instance.poseMatrixArrayPtr);
+                // var updateSuccess = KinFuUnity.captureFrame(Instance.pixelPtr);
+
+                // // This is a fatal status and we need to close the device
+                // // K4A_WAIT_RESULT_FAILED
+                // if (updateSuccess == -2)
+                // {
+                //     Instance.CloseCamera();
+                //     break;
+                // }
+
+                // Instance.updateImage = updateSuccess == 1;
+
+                // Instance.numPoints = KinFuUnity.capturePointCloud(Instance.pointsPtr);
+                // KinFuUnity.requestPose(Instance.poseMatrixArrayPtr);
             }
 
             Thread.Sleep(Instance.SleepTime);

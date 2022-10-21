@@ -35,7 +35,7 @@ public static class KinFuUnity
 
     [PluginFunctionAttr("captureFrame")]
     public static CaptureFrame captureFrame = null;
-    public delegate int CaptureFrame(IntPtr color_data);
+    public delegate int CaptureFrame(IntPtr color_data, IntPtr point_data, IntPtr pose_matrix_data);
 
     [PluginFunctionAttr("capturePointCloud")]
     public static CapturePointCloud capturePointCloud = null;

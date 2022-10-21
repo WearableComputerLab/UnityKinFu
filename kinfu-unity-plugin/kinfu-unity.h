@@ -26,7 +26,10 @@ extern "C"
 	KINFUUNITY_API void closeDevice();
 	KINFUUNITY_API void reset();
 
-	KINFUUNITY_API int captureFrame(unsigned char *color_data);
+	KINFUUNITY_API int captureFrame(
+		unsigned char *color_data,
+		unsigned char *point_data,
+		unsigned char *matrix_data);
 	KINFUUNITY_API int capturePointCloud(unsigned char *point_data);
 	KINFUUNITY_API void requestPose(unsigned char *matrix_data);
 }
