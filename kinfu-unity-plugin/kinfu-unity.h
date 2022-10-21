@@ -16,8 +16,6 @@ extern "C"
 	typedef void (*PrintMessageCallback)(int level, const char *);
 	KINFUUNITY_API void registerPrintMessageCallback(PrintMessageCallback callback, int level);
 
-	KINFUUNITY_API void requestPose(unsigned char *matrix_data);
-
 	KINFUUNITY_API int getConnectedSensorCount();
 	KINFUUNITY_API bool connectToDevice(int deviceIndex);
 	KINFUUNITY_API bool connectToDefaultDevice();
@@ -28,6 +26,7 @@ extern "C"
 	KINFUUNITY_API void closeDevice();
 	KINFUUNITY_API void reset();
 
-	KINFUUNITY_API int captureFrame(unsigned char* color_data);
+	KINFUUNITY_API int captureFrame(unsigned char *color_data);
 	KINFUUNITY_API int capturePointCloud(unsigned char *point_data);
+	KINFUUNITY_API void requestPose(unsigned char *matrix_data);
 }

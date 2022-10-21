@@ -18,22 +18,8 @@ public class KinectFusion : MonoBehaviour
         private set;
     }
 
-    public RawImage colorImage;
-
-    public UnityEvent<List<Vector3>> pointCloudUpdated;
-    public UnityEvent<Matrix4x4> poseUpdated;
-
-    Coroutine updateConnectedDevices;
-    Coroutine automaticUpdate;
-    Coroutine automaticCloudUpdate;
-    public TMPro.TMP_Text automaticUpdateLabel;
-
-
-    public GameObject connectButton;
-
-    public GameObject connectedUI;
-
     [Range(50, 500)]
+    [Tooltip("How long to sleep Kinect update thread")]
     public int SleepTime = 100;
 
     public enum KinFuLogLevels
@@ -45,27 +31,111 @@ public class KinectFusion : MonoBehaviour
         Trace,
         Off
     }
+    [Tooltip("Logging level from K4A library")]
+    public KinFuLogLevels logLevel = KinFuLogLevels.Warning;
 
+    [Header("Events")]
+    [Tooltip("Called when point cloud data has updated")]
+    public UnityEvent<List<Vector3>> pointCloudUpdated;
+    [Tooltip("Called when Camera Matrix has updated")]
+    public UnityEvent<Matrix4x4> poseUpdated;
+
+    [Header("UI Elements")]
+    [Tooltip("Connect to Device and Start button")]
+    public GameObject connectButton;
+    [Tooltip("UI group to show when connected")]
+    public GameObject connectedUI;
+    [Tooltip("Label to show number of connected devices")]
+    public TMPro.TMP_Text connectedLabel;
+    // Coroutine to update label
+    Coroutine updateConnectedDevices;
+
+
+    #region Threading
+    // Handle to the Update Thread
+    Thread updateThread;
+
+    // Lock object to ensure we do not have problems
+    static object threadLock = new object();
+    // Safety catch to stop update thread
+    static bool runUpdateThread = true;
+
+    // Whether the Color image has been updated
+    bool updateImage = false;
+    // Number of points captured from Point Cloud last frames
+    int numPoints = 0;
+
+    // Main update thread loop.
+    static void UpdateKinectThread()
+    {
+        while (runUpdateThread)
+        {
+            lock (threadLock)
+            {
+                // var updateSuccess = KinFuUnity.captureFrame(
+                //     Instance.pixelPtr,
+                //     Instance.pointsPtr,
+                //     Instance.poseMatrixArrayPtr
+                // );
+
+                // // This is a fatal status and we need to close the device
+                // // K4A_WAIT_RESULT_FAILED
+                // if (updateSuccess == -2)
+                // {
+                //     Instance.CloseCamera();
+                //     break;
+                // }
+
+                // Instance.updateImage = updateSuccess > 0;
+                // Instance.numPoints = updateSuccess;
+
+                var updateSuccess = KinFuUnity.captureFrame(Instance.pixelPtr);
+
+                // This is a fatal status and we need to close the device
+                // K4A_WAIT_RESULT_FAILED
+                if (updateSuccess == -2)
+                {
+                    Instance.CloseCamera();
+                    break;
+                }
+
+                Instance.updateImage = updateSuccess == 1;
+
+                Instance.numPoints = KinFuUnity.capturePointCloud(Instance.pointsPtr);
+                KinFuUnity.requestPose(Instance.poseMatrixArrayPtr);
+            }
+
+            Thread.Sleep(Instance.SleepTime);
+        }
+    }
+    #endregion
+
+    #region Pointers
+
+    /// Color image Texture
     private Texture2D tex;
 
     private Color32[] pixel32;
     private GCHandle pixelHandle;
     private IntPtr pixelPtr;
+    /// UI Component to display it
+    public RawImage colorImage;
 
+    /// Point cloud points
     private float[] points;
     private GCHandle pointsHandle;
     private IntPtr pointsPtr;
 
+    /// Camera Transform
     private float[] poseMatrixArray;
     private GCHandle poseMatrixArrayHandle;
     private IntPtr poseMatrixArrayPtr;
 
-    public TMPro.TMP_Text connectedLabel;
-    public KinFuLogLevels logLevel = KinFuLogLevels.Warning;
+    #endregion
 
+    #region Unity Functions
     private void Awake()
     {
-
         if (Instance != null)
         {
             this.enabled = false;
@@ -84,17 +154,8 @@ public class KinectFusion : MonoBehaviour
         Instance = this;
 
         InitTexture();
-
-        points = new float[1000000 * 3];
-        //Pin points array
-        pointsHandle = GCHandle.Alloc(points, GCHandleType.Pinned);
-        //Get the pinned address
-        pointsPtr = pointsHandle.AddrOfPinnedObject();
-
-        // Pin pose matrix data
-        poseMatrixArray = new float[16];
-        poseMatrixArrayHandle = GCHandle.Alloc(poseMatrixArray, GCHandleType.Pinned);
-        poseMatrixArrayPtr = poseMatrixArrayHandle.AddrOfPinnedObject();
+        InitPointsArray();
+        InitPoseMatrixArray();
 
         StartCheckingForDevices();
     }
@@ -117,7 +178,61 @@ public class KinectFusion : MonoBehaviour
         }
     }
 
-    ///
+    private void OnApplicationQuit()
+    {
+        CloseCamera();
+        pixelHandle.Free();
+        pointsHandle.Free();
+        poseMatrixArrayHandle.Free();
+    }
+
+    #endregion
+
+    #region Init Functions
+
+    void InitTexture()
+    {
+        // NOTE: This is created to MATCH the Kinect buffers - and should either
+        // a) be updated if this changes in the DLL
+        // b) be passed into the DLL somehow to configure
+        // c) be passed OUT of the DLL then created
+        // 
+        // But these are all tasks for later
+        tex = new Texture2D(1920, 1080, TextureFormat.RGBA32, false);
+        pixel32 = tex.GetPixels32();
+        //Pin pixel32 array
+        pixelHandle = GCHandle.Alloc(pixel32, GCHandleType.Pinned);
+        //Get the pinned address
+        pixelPtr = pixelHandle.AddrOfPinnedObject();
+
+        if (colorImage != null)
+        {
+            // Assign texture to renderer
+            colorImage.texture = tex;
+        }
+    }
+
+    private void InitPointsArray()
+    {
+        points = new float[1000000 * 3];
+        //Pin points array
+        pointsHandle = GCHandle.Alloc(points, GCHandleType.Pinned);
+        //Get the pinned address
+        pointsPtr = pointsHandle.AddrOfPinnedObject();
+    }
+
+    private void InitPoseMatrixArray()
+    {
+        // Pin pose matrix data
+        // This is known to be a 4x4 float matrix
+        poseMatrixArray = new float[16];
+        poseMatrixArrayHandle = GCHandle.Alloc(poseMatrixArray, GCHandleType.Pinned);
+        poseMatrixArrayPtr = poseMatrixArrayHandle.AddrOfPinnedObject();
+    }
+
+    #endregion
+
+    #region Device Polling
 
     void StartCheckingForDevices()
     {
@@ -160,14 +275,9 @@ public class KinectFusion : MonoBehaviour
         }
     }
 
-    private void OnApplicationQuit()
-    {
-        CloseCamera();
-        pixelHandle.Free();
-        pointsHandle.Free();
-        poseMatrixArrayHandle.Free();
-    }
+    #endregion
 
+    #region Process Kinect Data
     private void ProcessPoints(int numPoints)
     {
         if (numPoints <= 0)
@@ -181,7 +291,8 @@ public class KinectFusion : MonoBehaviour
         {
             for (int i = 0; i < numPoints - 3; i += 3)
             {
-                var point = new Vector3(points[i * 3], points[i * 3 + 1], points[i * 3 + 2]);
+                // As mentioned below - flip the Y position as OpenCV uses +Y as down
+                var point = new Vector3(points[i * 3], -points[i * 3 + 1], points[i * 3 + 2]);
 
                 positions.Add(point);
             }
@@ -206,6 +317,14 @@ public class KinectFusion : MonoBehaviour
         updateImage = false;
     }
 
+    // Converts the matrix from the raw OpenCV
+    // and into a Unity 4x4 matrix.
+    // NOTE: This is still in the OpenCV coordinate system
+    // where -y is UP!
+    //
+    // This has been handled in the UpdateCameraTransform class 
+    // with using the FlipXEuler option for the rotation, and appllied
+    // on the position as well.
     void UpdateCameraPose()
     {
         Matrix4x4 poseMatrix = new Matrix4x4();
@@ -227,27 +346,9 @@ public class KinectFusion : MonoBehaviour
         }
     }
 
-    void InitTexture()
-    {
-        // NOTE: This is created to MATCH the Kinect buffers - and should either
-        // a) be updated if this changes in the DLL
-        // b) be passed into the DLL somehow to configure
-        // c) be passed OUT of the DLL then created
-        // 
-        // But these are all tasks for later cleanup
-        tex = new Texture2D(1920, 1080, TextureFormat.RGBA32, false);
-        pixel32 = tex.GetPixels32();
-        //Pin pixel32 array
-        pixelHandle = GCHandle.Alloc(pixel32, GCHandleType.Pinned);
-        //Get the pinned address
-        pixelPtr = pixelHandle.AddrOfPinnedObject();
+    #endregion
 
-        // Assign texture to renderer
-        colorImage.texture = tex;
-    }
-
-    Thread updateThread;
-
+    #region Kinect Control 
     public void ConnectAndStartCameras()
     {
         var success = KinFuUnity.connectAndStartCameras();
@@ -285,35 +386,6 @@ public class KinectFusion : MonoBehaviour
         Debug.Log("Device Reset");
     }
 
-    static object threadLock = new object();
-    static bool runUpdateThread = true;
+    #endregion
 
-    bool updateImage = false;
-    int numPoints = 0;
-
-    static void UpdateKinectThread()
-    {
-        while (runUpdateThread)
-        {
-            lock (threadLock)
-            {
-                var updateSuccess = KinFuUnity.captureFrame(Instance.pixelPtr);
-
-                // This is a fatal status and we need to close the device
-                // K4A_WAIT_RESULT_FAILED
-                if (updateSuccess == -2)
-                {
-                    Instance.CloseCamera();
-                    break;
-                }
-
-                Instance.updateImage = updateSuccess == 1;
-
-                Instance.numPoints = KinFuUnity.capturePointCloud(Instance.pointsPtr);
-                KinFuUnity.requestPose(Instance.poseMatrixArrayPtr);
-            }
-
-            Thread.Sleep(Instance.SleepTime);
-        }
-    }
 }
