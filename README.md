@@ -79,7 +79,7 @@ Open the project and build both Debug and Release. This should build with no iss
 
 Under the KinFu Unity plugin folder (this folder) create under `extern` the following folders:
 
-- `'lib`
+- `lib`
 - `opencv-{OPENCV_VERSION_WITHOUT_DOTS}\include` (i.e `opencv-460`)
 - `opencv_contrib-{OPENCV_VERSION_WITHOUT_DOTS}\modules\rgbd\include` (i.e `opencv_contrib-460`)
 
