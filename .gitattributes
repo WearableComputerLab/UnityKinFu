@@ -1,0 +1,2 @@
+**/Assets/Plugins/opencv_*.dll filter=lfs diff=lfs merge=lfs -text
+kinfu-unity-example/Assets/VFX/kf_output.ply filter=lfs diff=lfs merge=lfs -text
