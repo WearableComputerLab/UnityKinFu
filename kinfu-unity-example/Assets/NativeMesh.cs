@@ -90,12 +90,11 @@ public class NativeMesh : MonoBehaviour
         return res;
     }
 
-    // Start is called before the first frame update
-    void Start()
+    public void StartMeshReconstruction()
     {
         Debug.Log("Starting.");
 
-        if(plyFilePath.Length == 0)
+        if(plyFilePath.Length == 0 || plyFilePath == null)
         {
             Debug.Log("Please provide PLY file path.");
             return;
@@ -129,7 +128,6 @@ public class NativeMesh : MonoBehaviour
         float[] inputVerticesArray = getFloatArrayFromPointsList(inputVerticesList);
         float[] inputNormalsArray = getFloatArrayFromPointsList(inputNormalsList);
 
-        // bool success = reconstructFileCloud(plyFilePath, true);
         bool success = false;
         unsafe
         {
