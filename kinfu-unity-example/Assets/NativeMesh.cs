@@ -23,9 +23,10 @@ public class NativeMesh : MonoBehaviour
     [DllImport("MeshReconstruction")]
     public static extern unsafe void getMesh(float* vertices, int* triangles, float* normals);
 
-    [SerializeField] private string plyFilePath;
+    [SerializeField] private string _plyFilePath;
+    [SerializeField] private Material _meshMaterial;
 
-    bool readPointCloudFromFile(string path, List<Vector3> vertices, List<Vector3> normals)
+    bool ReadPointCloudFromFile(string path, List<Vector3> vertices, List<Vector3> normals)
     {
         StreamReader streamReader = new StreamReader(path);
         string pointFile = streamReader.ReadToEnd();
@@ -78,7 +79,7 @@ public class NativeMesh : MonoBehaviour
         return true;
     }
 
-    float [] getFloatArrayFromPointsList(List<Vector3> points)
+    float [] GetFloatArrayFromPointsList(List<Vector3> points)
     {
         float[] res = new float[points.Count * 3];
         for (int i = 0; i < points.Count; ++i)
@@ -94,7 +95,7 @@ public class NativeMesh : MonoBehaviour
     {
         Debug.Log("Starting.");
 
-        if(plyFilePath.Length == 0 || plyFilePath == null)
+        if(_plyFilePath.Length == 0 || _plyFilePath == null)
         {
             Debug.Log("Please provide PLY file path.");
             return;
@@ -103,7 +104,7 @@ public class NativeMesh : MonoBehaviour
         List<Vector3> inputVerticesList = new List<Vector3>();
         List<Vector3> inputNormalsList = new List<Vector3>();
 
-        bool fileReadSucceded = readPointCloudFromFile(plyFilePath, inputVerticesList, inputNormalsList);
+        bool fileReadSucceded = ReadPointCloudFromFile(_plyFilePath, inputVerticesList, inputNormalsList);
         if (!fileReadSucceded)
         {
             Debug.Log("Unable to read point cloud from file");
@@ -118,15 +119,15 @@ public class NativeMesh : MonoBehaviour
 
         //print to see if it points read correctly
         Debug.Log("~~~~~~~~~~");
-        printPoint(inputVerticesList[0]);
-        printPoint(inputNormalsList[0]);
+        PrintPoint(inputVerticesList[0]);
+        PrintPoint(inputNormalsList[0]);
         Debug.Log("~~~~~~~~~~");
-        printPoint(inputVerticesList[inputVerticesList.Count - 1]);
-        printPoint(inputNormalsList[inputNormalsList.Count - 1]);
+        PrintPoint(inputVerticesList[inputVerticesList.Count - 1]);
+        PrintPoint(inputNormalsList[inputNormalsList.Count - 1]);
         Debug.Log("~~~~~~~~~~");
 
-        float[] inputVerticesArray = getFloatArrayFromPointsList(inputVerticesList);
-        float[] inputNormalsArray = getFloatArrayFromPointsList(inputNormalsList);
+        float[] inputVerticesArray = GetFloatArrayFromPointsList(inputVerticesList);
+        float[] inputNormalsArray = GetFloatArrayFromPointsList(inputNormalsList);
 
         bool success = false;
         unsafe
@@ -189,12 +190,13 @@ public class NativeMesh : MonoBehaviour
             mesh.triangles = trianglesDoubled;
 
 
-            GameObject gameObject = new GameObject("Mesh", typeof(MeshFilter), typeof(MeshRenderer));
+            GameObject gameObject = new GameObject("GeneratedMesh", typeof(MeshFilter), typeof(MeshRenderer));
             
             gameObject.GetComponent<MeshFilter>().mesh = mesh;
 
             MeshRenderer meshRenderer = gameObject.GetComponent<MeshRenderer>();
-            meshRenderer.material = new Material(Shader.Find("Diffuse"));
+            //meshRenderer.material = new Material(Shader.Find("Diffuse")); 
+            meshRenderer.material = _meshMaterial;
         }
         else
         {
@@ -202,8 +204,8 @@ public class NativeMesh : MonoBehaviour
         }
     }
 
-    void printPoint(Vector3 point)
+    void PrintPoint(Vector3 point)
     {
-        Debug.Log($"X: {point.x}\nY: {point.y}\nZ: {point.z}");
+        Debug.Log($"Point - \nX: {point.x}\nY: {point.y}\nZ: {point.z}");
     }
 }

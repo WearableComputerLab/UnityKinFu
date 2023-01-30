@@ -2402,7 +2402,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 81ea32780321555439f6a02992a4993c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  plyFilePath: Assets/kinect_test.ply
+  _plyFilePath: Assets/kinect_test.ply
+  _meshMaterial: {fileID: 10302, guid: 0000000000000000f000000000000000, type: 0}
 --- !u!4 &1927575051
 Transform:
   m_ObjectHideFlags: 0
