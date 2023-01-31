@@ -199,3 +199,34 @@ These are from the Point Cloud Library (PCL) and dependencies:
 - `vtkFiltersCore-9.1.dll`
 - `vtkzlib-9.1.dll`
 - `vtkFiltersGeneral-9.1.dll`
+
+### Native Mesh Plugin for Unity usage
+
+The example project shows a working example of how the native mesh works, and includes a script (`NativeMesh.cs`) that outlines usage of the `Native Mesh Plugin`
+
+The Native Mesh Plugin is a wrapper of the Point Cloud Library (PCL) which allows for mesh reconstruction via c++ methods.
+
+The current implementation allows for mesh reconstruction from a `.ply` file.
+
+- `ReadPointCloudFromFile(string path, List<Vector3> vertices, List<Vector3> normals)`
+  Accepts a `.ply` file and `List<Vector3>` for vertices and normals defined within the file.
+  This method checks to ensure that the file passed can be reconstructed, and will be `true` or `false` depending on if
+  vertex and normal data can be read from the file.
+
+- `GetFloatArrayFromPointsList(List<Vector3> points)`
+  Accepts a list of `Vector3` points and returns an array that contains x,y,z information to use for mesh reconstruction
+
+- `StartMeshReconstruction()`
+  The main method that performs the necessary functions to: - Open and read the `.ply` file successfully - Store vertices and normals in a float array - Reconstruct the mesh using PCL wrapper methods - Create an in-editor mesh and build using mesh information received from PCL wrapper methods
+
+- `PrintPoint(Vector3 point)`
+  Debug method to print out a `Vector3` point in x,y,z format
+
+The example project has a basic `.ply` file to demonstrate reconstruction of a mesh from file (`kinect_test.ply`).
+A button with label `Mesh` will reconstruct the test mesh when the project is running.
+
+##### Notes:
+
+- The mesh reconstruction currently only allows for reconstruction via passing in a `.ply` file, this can be extended to use Kinect point cloud data
+- A material will need to be added to the `GameObject` that holds the reconstruction script, further investigation into `new Material(Shader.Find("Diffuse"))` will likely make this redundant but for now the current render pipeline
+  and inbuilt shaders render as magenta.
