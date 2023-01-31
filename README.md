@@ -4,7 +4,7 @@ This plugin allows the use of the Azure Kinect, and will extract the camera 6DOF
 
 ## Example app
 
-This application under `kinfu-unity-example` is a basic setup to showcase the use of the plugin. Futher documentation for the plugin can be found in the README file under `kinfu-unity-example`.
+This application under `kinfu-unity-example` is a basic setup to showcase the use of the plugin. Further documentation for the plugin can be found in the README file under `kinfu-unity-example`.
 
 ## References
 
@@ -132,3 +132,70 @@ Debug
 - `opencv_imgproc460d.dll`
 - `opencv_rgbd460d.dll`
 - `opencv_videoio460d.dll`
+
+### Native Mesh Plugin for Unity using Point Cloud Library
+
+[Point Cloud Library project](https://pointclouds.org/)
+
+As long as the plugin folder resides with the example app, building the project will also copy the DLL to the Unity Project `Assets/Plugins` folder.
+
+It is worth double checking the following DLLs also exist under the `Assets/Plugins/Native_Mesh` folder, and if not these can be copied from `{path}/extern/lib/Debug or {path}/extern/lib/Release` directories.
+
+To ensure the app will run correctly, you will need the following DLLs under the `Plugins\Native_Mesh` folder:
+
+Native Mesh plugin: `MeshReconstruction.dll`
+
+These are from the Point Cloud Library (PCL) and dependencies:
+
+- `OpenNI2.dll`
+- `vtkFiltersHybrid-9.1.dll`
+- `vtkFiltersGeometry-9.1.dll`
+- `OpenNI2.jni.dll`
+- `vtkFiltersModeling-9.1.dll`
+- `concrt140.dll`
+- `vtkFiltersSources-9.1.dll`
+- `pcl_common.dll`
+- `vtkIOCore-9.1.dll`
+- `pcl_features.dll`
+- `vtkIOGeometry-9.1.dll`
+- `pcl_filters.dll`
+- `vtkIOImage-9.1.dll`
+- `pcl_io.dll`
+- `vtkIOLegacy-9.1.dll`
+- `pcl_io_ply.dll`
+- `vtkIOPLY-9.1.dll`
+- `pcl_kdtree.dll`
+- `vtkImagingCore-9.1.dll`
+- `pcl_octree.dll`
+- `vtkImagingSources-9.1.dll`
+- `pcl_sample_consensus.dll`
+- `vtkRenderingCore-9.1.dll`
+- `pcl_search.dll`
+- `vtkdoubleconversion-9.1.dll`
+- `pcl_surface.dll`
+- `vtkfmt-9.1.dll`
+- `qhull_r.dll`
+- `vtkjpeg-9.1.dll`
+- `vtkCommonColor-9.1.dll`
+- `vtkjsoncpp-9.1.dll`
+- `vtkCommonComputationalGeometry-9.1.dll `
+- `vtkkissfft-9.1.dll`
+- `vtkCommonCore-9.1.dll`
+- `vtkloguru-9.1.dll`
+- `vtkCommonDataModel-9.1.dll`
+- `vtklz4-9.1.dll`
+- `vtkCommonExecutionModel-9.1.dll`
+- `vtklzma-9.1.dll`
+- `vtkCommonMath-9.1.dll`
+- `vtkmetaio-9.1.dll`
+- `vtkCommonMisc-9.1.dll`
+- `vtkpng-9.1.dll`
+- `vtkCommonSystem-9.1.dll`
+- `vtkpugixml-9.1.dll`
+- `vtkCommonTransforms-9.1.dll`
+- `vtksys-9.1.dll`
+- `vtkDICOMParser-9.1.dll`
+- `vtktiff-9.1.dll`
+- `vtkFiltersCore-9.1.dll`
+- `vtkzlib-9.1.dll`
+- `vtkFiltersGeneral-9.1.dll`
